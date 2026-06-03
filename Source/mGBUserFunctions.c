@@ -151,8 +151,14 @@ void getPad(void)
 				NR22_REG = 0;
 				NR32_REG = 0;
 				NR42_REG = 0;
-				pbWheelIn[0] = pbWheelIn[1] = pbWheelIn[2] = pbWheelIn[3] = 0x80;
-				pu1Sus = pu2Sus = wavSus = 0;
+				for(j=0;j!=4;j++) {
+					pbWheelIn[j] = PBWHEEL_CENTER;
+					pbWheelInLast[j] = PBWHEEL_CENTER;
+					pbWheelActive[j] = 0;
+				}
+				for(j=0;j!=8;j++) noteStatus[j] = 0;
+				pu1Sus = pu2Sus = wavSus = noiSus = 0;
+				pu1NoteOffTrigger = pu2NoteOffTrigger = wavNoteOffTrigger = noiNoteOffTrigger = 0;
 				polyNoteState[0] = polyNoteState[1] = polyNoteState[2] = 0;
 				return;
 			} else if (joyState[7]) {

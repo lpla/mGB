@@ -1,10 +1,10 @@
 
-extern UBYTE saveData[513U];
+extern UBYTE saveData[514U];
 //extern UBYTE wavData[512U];
 
-extern UBYTE serialBuffer[256];
-extern UBYTE serialBufferPosition;
-extern UBYTE serialBufferReadPosition;
+extern volatile UBYTE serialBuffer[256];
+extern volatile UBYTE serialBufferPosition;
+extern volatile UBYTE serialBufferReadPosition;
 
 UBYTE statusByte;
 UBYTE note;
@@ -13,15 +13,16 @@ UBYTE captureDataType;
 UBYTE capturedAddress;
 UBYTE updateDisplaySynthCounter;
 
-void asmMain();
-void asmUpdateSerial();
+void asmMain(void);
+void asmUpdateSerial(void);
 void asmLoadWav(UBYTE ost);
-void asmUpdateMidiBuffer();
-void asmUpdatePu1();
-void asmUpdatePu2();
-void asmUpdateWav();
-void asmUpdateNoi();
-void asmPlayNotePu1();
+void asmUpdateMidiBuffer(void);
+void asmUpdatePu1(void);
+void asmUpdatePu2(void);
+void asmUpdateWav(void);
+void asmUpdateNoi(void);
+void asmPlayNotePu1(void);
+void serialSetup(void);
 
 #define PU1 0
 #define PU2 1
@@ -38,6 +39,17 @@ void asmPlayNotePu1();
 #define NOI_CURRENT_NOTE   7
 
 #define PBWHEEL_CENTER     0x80
+
+#define NOTE_INDEX_MAX     71U
+#define PRESET_COUNT       16U
+#define PRESET_SLOT_SIZE   8U
+#define SAVE_MAGIC         0xF7U
+#define SAVE_CHECKSUM_SEED 0x5AU
+#define SAVE_CHECKSUM_EMPTY_A 0x00U
+#define SAVE_CHECKSUM_EMPTY_B 0xFFU
+#define SAVE_MAGIC_OFFSET  512U
+#define SAVE_CHECKSUM_OFFSET 513U
+#define WAV_DATA_MAX_OFFSET 240U
 
 
 #define RGB_LIGHT      RGB( 23, 29, 31)

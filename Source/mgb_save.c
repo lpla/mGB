@@ -1,3 +1,3 @@
 #include <types.h>
 
-UBYTE saveData[513];
+UBYTE saveData[514];

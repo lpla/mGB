@@ -5,6 +5,47 @@ mGB is a Gameboy cartridge program (You need a Flash Cart and Transfer hardware)
 
 ![ScreenShot](http://trash80.net/arduinoboy/mGB1_2_0.png)
 
+## Building
+
+This fork builds with [GBDK-2020](https://github.com/gbdk-2020/gbdk-2020).
+
+```sh
+make -C Source build GBDK_HOME=/path/to/gbdk
+```
+
+The ROM is written to `Source/mgb.gb`. If `GBDK_HOME` is omitted, the Makefile
+looks for GBDK-2020 at `../gbdk`.
+
+To run local ROM regression checks against the committed binaries:
+
+```sh
+make -C Source test GBDK_HOME=/path/to/gbdk
+```
+
+To also compare header compatibility against the configured upstream remote:
+
+```sh
+git fetch upstream
+make -C Source test-upstream GBDK_HOME=/path/to/gbdk
+```
+
+To run the SameBoy MIDI/link-cable regression suite:
+
+```sh
+make -C Source sameboy-midi-regression GBDK_HOME=/path/to/gbdk
+```
+
+The SameBoy suite builds a small headless harness against SameBoy Core, rebuilds
+`Source/mgb.gb`, stages the upstream and previous committed ROMs, and injects
+MIDI bytes through SameBoy's external serial/link API. It covers CGB and DMG
+mode, single-Game-Boy MIDI behavior, 4-way Synccross-style fan-out, Start panic,
+save-data recovery, and longer stress/soak scenarios.
+
+By default the runner expects SameBoy source at `/tmp/SameBoy-src` and SameBoy's
+installed boot ROMs in `/Applications/SameBoy.app/Contents/Resources`. Override
+those paths with `SAMEBOY_SRC=/path/to/SameBoy` and
+`SAMEBOY_BOOT_DIR=/path/to/bootroms`.
+
 ## Change Log
  * 05/22/18
    * Renamed {address,value}Byte to note/velocity.

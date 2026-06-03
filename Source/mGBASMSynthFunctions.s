@@ -335,7 +335,7 @@ _asmUpdateNoiPbWheelReset$::
 	ld	hl, #_pbWheelInLast + 3
 	ld	(hl), A
 
-	ld	hl, #_noteStatus + 3
+	ld	hl, #_noteStatus + 7
 	ld	A,(hl)
 	ld	B,A
 
@@ -372,6 +372,15 @@ _asmPlayNotePu1::
 	SUB #0x24
 	ld	hl, #_pu1Oct
 	add (hl)
+	bit 7,A
+	jr z,_asmPlayNotePu1ClampHigh$
+	ld	A,#0x00
+	jr _asmPlayNotePu1ClampDone$
+_asmPlayNotePu1ClampHigh$::
+	cp #0x48
+	jr c,_asmPlayNotePu1ClampDone$
+	ld	A,#0x47
+_asmPlayNotePu1ClampDone$::
 
 	ld  B, A
 	ld	hl, #_velocity
@@ -514,6 +523,15 @@ _asmPlayNotePu2$::
 	SUB #0x24
 	ld	hl, #_pu2Oct
 	add (hl)
+	bit 7,A
+	jr z,_asmPlayNotePu2ClampHigh$
+	ld	A,#0x00
+	jr _asmPlayNotePu2ClampDone$
+_asmPlayNotePu2ClampHigh$::
+	cp #0x48
+	jr c,_asmPlayNotePu2ClampDone$
+	ld	A,#0x47
+_asmPlayNotePu2ClampDone$::
 
 	ld  B, A
 	ld	hl, #_velocity
@@ -651,6 +669,15 @@ _asmPlayNoteWav$::
 	SUB #0x18
 	ld	hl, #_wavOct
 	add (hl)
+	bit 7,A
+	jr z,_asmPlayNoteWavClampHigh$
+	ld	A,#0x00
+	jr _asmPlayNoteWavClampDone$
+_asmPlayNoteWavClampHigh$::
+	cp #0x48
+	jr c,_asmPlayNoteWavClampDone$
+	ld	A,#0x47
+_asmPlayNoteWavClampDone$::
 	ld  B, A
 	ld	hl, #_velocity
 	ld	A,(hl)
@@ -794,8 +821,17 @@ _asmPlayNoteNoi$::
 	ld	hl, #_note
 	ld	A,(hl)
 	SUB #0x18
-	ld	hl, #_pu2Oct
+	ld	hl, #_noiOct
 	add (hl)
+	bit 7,A
+	jr z,_asmPlayNoteNoiClampHigh$
+	ld	A,#0x00
+	jr _asmPlayNoteNoiClampDone$
+_asmPlayNoteNoiClampHigh$::
+	cp #0x48
+	jr c,_asmPlayNoteNoiClampDone$
+	ld	A,#0x47
+_asmPlayNoteNoiClampDone$::
 	ld  B, A
 	ld	hl, #_velocity
 	ld	A,(hl)
@@ -858,7 +894,7 @@ _asmPlayNoteNoiOff$::
 	ld	A,#0x00
 	ld (hl), A
 
-	ld	hl, #_pu2Sus
+	ld	hl, #_noiSus
 	ld	A,(hl)
 	bit	0, A
 	jp	nz,_popReturn$

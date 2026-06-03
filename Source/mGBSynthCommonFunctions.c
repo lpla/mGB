@@ -39,6 +39,14 @@ void setOutputPan(UBYTE synth, UBYTE value)
   NR51_REG = outputSwitch[0]+outputSwitch[1]+outputSwitch[2]+outputSwitch[3];
 }
 
+void setWavDataOffsetFromDataSet(void)
+{
+	UWORD offset;
+	offset = ((UWORD)dataSet[14] << 4U) + dataSet[15];
+	if(offset > WAV_DATA_MAX_OFFSET) offset = WAV_DATA_MAX_OFFSET;
+	wavDataOffset = (UBYTE)offset;
+}
+
 void updateValueSynth(UBYTE p)
 {
 	switch(p)
@@ -91,10 +99,10 @@ void updateValueSynth(UBYTE p)
 			wavOct = (wavOct - 2U) * 12U;
 			break;
 		case 14:
-			wavDataOffset = (dataSet[p]<<4) + dataSet[15];
+			setWavDataOffsetFromDataSet();
 			break;
 		case 15:
-			wavDataOffset = (dataSet[14]<<4) + dataSet[p];
+			setWavDataOffsetFromDataSet();
 			break;
 		case 16:
 			wavSweepSpeed = dataSet[p];

@@ -13,6 +13,7 @@ push bc
     add	A,(hl)
 	ld	E,A
     ld	A,#>_serialBuffer
+    adc	A,#0x00
 	ld	D,A
 	ld	A,(DE)
 
@@ -37,9 +38,9 @@ push bc
 	AND	#0x0F
 
 	cp	#0x0E
-		jr z,_asmEventMidiPB$
+		jp z,_asmEventMidiPB$
 	cp	#0x0B
-		jr z,_asmEventMidiCC$
+		jp z,_asmEventMidiCC$
 	cp	#0x08
 		jr z,_asmEventMidiNoteOff$
 	cp	#0x09
@@ -55,9 +56,13 @@ ret
 
 _asmUpdateMidiBufferStatus$::
 	ld	B,A
+	AND	#0xF8
+	cp	#0xF8
+		jr z,_popReturn$
+	ld	A,B
 	AND	#0xF0
 	cp	#0xF0
-		jr z,_popReturn$
+		jr z,_asmUpdateMidiBufferSystem$
 	ld	A,B
 
 	ld	hl,#_statusByte
@@ -70,7 +75,25 @@ _asmUpdateMidiBufferStatus$::
 pop	bc
 ret
 
+_asmUpdateMidiBufferSystem$::
+	ld	hl,#_statusByte
+	ld (hl),#0x00
+	ld	hl,#_capturedAddress
+	ld (hl),#0x00
+	ld hl,#_systemIdle
+	ld (hl),#0x00
+pop	bc
+ret
+
 _asmUpdateMidiBufferAddress$::
+	ld	B,A
+	ld	hl,#_statusByte
+	ld	A,(hl)
+	AND	#0xF0
+	cp	#0xC0
+		jr z,_asmUpdateMidiBufferProgramChange$
+	ld	A,B
+	ld	hl,#_capturedAddress
 	ld (hl),#0x01
 	ld	hl,#_note
 	ld (hl),A
@@ -79,6 +102,19 @@ _asmUpdateMidiBufferAddress$::
 	ld (hl),#0x00
 pop	bc
 ret
+
+_asmUpdateMidiBufferProgramChange$::
+	ld	A,B
+	ld	hl,#_velocity
+	ld (hl),A
+	ld	hl,#_capturedAddress
+	ld (hl),#0x00
+	ld hl,#_systemIdle
+	ld (hl),#0x00
+	ld	hl,#_statusByte
+	ld	A,(hl)
+	ld	B,A
+	jp _asmEventMidiPC$
 
 _asmEventMidiNoteOff$::
 	ld	hl,#_velocity
@@ -706,7 +742,7 @@ _asmPu2SusOff$::
 	ld	hl,#_pu2Sus
     ld	(hl),A
 
-	ld	hl,#_noteStatus + 5
+	ld	hl,#_noteStatus + 2
 	ld	A,(hl)
 	bit 0,A
 	jr z, _asmPu2SusNoteOff$
@@ -740,7 +776,7 @@ _asmEventMidiCCWav$::
 	cp	#0x02
 		jr z,_asmWavOst$;
 	cp	#0x03
-		jr z,_asmWavSwp$;
+		jp z,_asmWavSwp$;
 	cp	#0x04
 		jp z,_asmWavPbr$;
 	cp	#0x05
@@ -778,6 +814,14 @@ _asmWavWav$::
 
 	ld	hl,#_dataSet + 15
 	ADD A,(hl)
+	jr nc,_asmWavWavOffsetNoCarry$
+	ld	A,#0xF0
+	jr _asmWavWavOffsetOk$
+_asmWavWavOffsetNoCarry$::
+	cp	#0xF1
+	jr c,_asmWavWavOffsetOk$
+	ld	A,#0xF0
+_asmWavWavOffsetOk$::
 	ld	hl,#_wavDataOffset
 	ld	(hl),A
 pop	bc
@@ -803,6 +847,14 @@ _asmWavOst$::
 	ld  A,(hl)
 	SWAP A
 	ADD B
+	jr nc,_asmWavOstOffsetNoCarry$
+	ld	A,#0xF0
+	jr _asmWavOstOffsetOk$
+_asmWavOstOffsetNoCarry$::
+	cp	#0xF1
+	jr c,_asmWavOstOffsetOk$
+	ld	A,#0xF0
+_asmWavOstOffsetOk$::
 
 	ld	hl,#_wavDataOffset
 	ld	(hl),A
@@ -864,7 +916,7 @@ ret
 
 
 _asmWavPan$::
-	ld	de,#_parameterLock + 12
+	ld	de,#_parameterLock + 19
 	ld	A,(de)
 	bit 0, A
 	jp nz, _popReturn$
@@ -960,7 +1012,7 @@ _asmWavSusOff$::
 	ld	hl,#_wavSus
     ld	(hl),A
 
-	ld	hl,#_noteStatus + 10
+	ld	hl,#_noteStatus + 4
 	ld	A,(hl)
 	bit 0,A
 	jr z, _asmWavSusNoteOff$
@@ -978,7 +1030,7 @@ _asmWavNf$::
 	ld (#0xFF1C),A
 	ld	hl,#_wavSus
     ld	(hl),A
-	ld	de,#_dataSet + 11
+	ld	de,#_dataSet + 18
     ld	(de),A
 pop	bc
 ret
@@ -1148,7 +1200,7 @@ _asmNoiSusOff$::
 	ld	hl,#_noiSus
     ld	(hl),A
 
-	ld	hl,#_noteStatus + 15
+	ld	hl,#_noteStatus + 6
 	ld	A,(hl)
 	bit 0,A
 	jr z, _asmNoiSusNoteOff$

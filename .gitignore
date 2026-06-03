@@ -1,2 +1,11 @@
 Source/obj
 mgb.gb
+*.adb
+*.asm
+*.cdb
+*.lst
+*.map
+*.noi
+*.o
+*.rst
+*.sym

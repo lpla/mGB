@@ -87,7 +87,7 @@ void updateDisplayValue(UBYTE p,UBYTE v)
 		}
 }
 
-void updateDisplaySynth()
+void updateDisplaySynth(void)
 {
   //printbyte(serialBufferPosition,serialBufferReadPosition,serialBuffer[serialBufferPosition]);
 	for(i=0;i!=0x09U;i++) {
@@ -97,7 +97,7 @@ void updateDisplaySynth()
 	}
 }
 
-void updateDisplay()
+void updateDisplay(void)
 {
   UBYTE x=0;
 	for(j=0;j!=0x04U;j++) {
@@ -111,7 +111,7 @@ void updateDisplay()
 	}
 }
 
-void setCursor()
+void setCursor(void)
 {
 	if(cursorColumnLast != cursorColumn) {
 		if(cursorColumn>0xF0U) cursorColumn=0x03U;

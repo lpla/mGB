@@ -1,4 +1,5 @@
 #include <gb/gb.h>
+#include <gb/cgb.h>
 #include <mGB.h>
 
 void printbyte(UBYTE v1, UBYTE v2, UBYTE v3)
@@ -24,6 +25,7 @@ void printbyte(UBYTE v1, UBYTE v2, UBYTE v3)
 #include <mGBSynthCommonFunctions.c>
 #include <mGBDisplayFunctions.c>
 #include <mGBMemoryFunctions.c>
+#include <mGBSerialFunctions.c>
 #include <mGBUserFunctions.c>
 
 void setSoundDefaults(void)
@@ -59,12 +61,12 @@ void main(void)
 	displaySetup();
 	setSoundDefaults();
 	add_TIM(updateSynths);
+	serialSetup();
 
 	loadDataSet(0x00U);
 	loadDataSet(0x01U);
 	loadDataSet(0x02U);
 	loadDataSet(0x03U);
-	enable_interrupts();
 
 
   /* Set TMA to divide clock by 0x100 */
@@ -74,6 +76,7 @@ void main(void)
   /* Handle VBL and TIM interrupts */
 
   set_interrupts(VBL_IFLAG | TIM_IFLAG | SIO_IFLAG);
+	enable_interrupts();
 
 	SHOW_BKG;
 	SHOW_SPRITES;

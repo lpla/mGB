@@ -1,17 +1,42 @@
+UBYTE getCurrentNoteIndex(UBYTE synth)
+{
+	i = noteStatus[(synth << 1U) + 1U];
+	if(i > NOTE_INDEX_MAX) i = NOTE_INDEX_MAX;
+	return i;
+}
+
+UBYTE getPitchBendLowNoteIndex(UBYTE synth)
+{
+	i = getCurrentNoteIndex(synth);
+	j = pbNoteRange[synth << 1U];
+	if(j > i) return 0U;
+	return j;
+}
+
+UBYTE getPitchBendHighNoteIndex(UBYTE synth)
+{
+	i = getCurrentNoteIndex(synth);
+	j = pbNoteRange[(synth << 1U) + 1U];
+	if(j < i || j > NOTE_INDEX_MAX) return NOTE_INDEX_MAX;
+	return j;
+}
+
 void setPitchBendFrequencyOffset(UBYTE synth)
 {
   UWORD freqRange;
-  UWORD f = freq[noteStatus[(synth<<1)+0x01]];
+  UWORD f;
+	i = getCurrentNoteIndex(synth);
+  f = freq[i];
   systemIdle = 0;
 	if(pbWheelIn[synth] & 0x80) {
-		freqRange = freq[pbNoteRange[(synth<<1)+0x01]];
+		freqRange = freq[getPitchBendHighNoteIndex(synth)];
 		currentFreq = (UWORD) (pbWheelIn[synth] - 0x7F);
     currentFreq <<= 6;
 		currentFreq /= 128;
 		currentFreq = currentFreq * (freqRange - f);
 		currentFreq = f + (currentFreq>>6);
 	} else {
-		freqRange = freq[pbNoteRange[synth<<1]];
+		freqRange = freq[getPitchBendLowNoteIndex(synth)];
     currentFreq = (UWORD) (0x80 - pbWheelIn[synth]);
     currentFreq <<= 6;
 		currentFreq /= 128;
@@ -41,13 +66,24 @@ void setPitchBendFrequencyOffset(UBYTE synth)
 void setPitchBendFrequencyOffsetNoise(void)
 {
   systemIdle = 0;
+	i = noteStatus[NOI_CURRENT_NOTE];
+	if(i > NOTE_INDEX_MAX) i = NOTE_INDEX_MAX;
   if(pbWheelIn[NOI] & 0x80) {
-		noteStatus[NOI_CURRENT_NOTE] = noteStatus[NOI_CURRENT_NOTE];
-    currentFreq = noiFreq[noteStatus[NOI_CURRENT_NOTE] + ((pbWheelIn[NOI] - 0x80) >>3)];
+    j = ((pbWheelIn[NOI] - 0x80U) >>3U);
+		if((NOTE_INDEX_MAX - i) < j) {
+			i = NOTE_INDEX_MAX;
+		} else {
+			i += j;
+		}
   } else {
-		noteStatus[NOI_CURRENT_NOTE] = noteStatus[NOI_CURRENT_NOTE];
-    currentFreq = noiFreq[noteStatus[NOI_CURRENT_NOTE] - ((0x80 - pbWheelIn[NOI]) >>3)];
+    j = ((0x80U - pbWheelIn[NOI]) >>3U);
+		if(j > i) {
+			i = 0U;
+		} else {
+			i -= j;
+		}
   }
+	currentFreq = noiFreq[i];
   NR43_REG = currentFreq;
   currentFreqData[NOI] = currentFreq;
 }

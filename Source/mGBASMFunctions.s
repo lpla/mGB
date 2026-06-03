@@ -162,3 +162,42 @@ push bc
 	ld (hl),#0x00
 pop	bc
 ret
+
+_serialReceiveHandler::
+push af
+push bc
+push de
+push hl
+	ld	A,(#0xFF01)
+	ld	B,A
+
+	ld	hl,#_serialBufferPosition
+	ld	A,(hl)
+	inc	A
+	ld	C,A
+	ld	hl,#_serialBufferReadPosition
+	cp	(hl)
+	jr z,_serialReceiveHandlerDrop$
+
+	ld	hl,#_serialBufferPosition
+	ld	(hl),C
+
+	ld	A,#<_serialBuffer
+	add	A,C
+	ld	E,A
+	ld	A,#>_serialBuffer
+	adc	A,#0x00
+	ld	D,A
+	ld	A,B
+	ld	(DE),A
+
+_serialReceiveHandlerDrop$::
+	ld	A,#0x00
+	ld	(#0xFF01),A
+	ld	A,#0x80
+	ld	(#0xFF02),A
+pop hl
+pop de
+pop bc
+pop af
+ret
