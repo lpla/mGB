@@ -1,7 +1,7 @@
 
 void clearParameterLocks(void)
 {
-	for(j=0;j!=24;j++) parameterLock[j] = 0;
+	for(j=0;j!=DATASET_SOUND_COUNT;j++) parameterLock[j] = 0;
 }
 
 void setDataValue(void)
@@ -29,6 +29,7 @@ void setDataValue(void)
 			if(cursorEnable[j] && tableCursorLookup[j][cursorRow[j]] != 0xFFU) {
 				x = tableCursorLookup[j][cursorRow[j]];
 				l = tableData[x][2];
+				inc = ((i & J_UP) || (i & J_DOWN)) ? 16U : 1U;
 				switch(x)
 					{
 					case 6:
@@ -49,6 +50,10 @@ void setDataValue(void)
 					case 7:
 					case 13:
 					case 20:
+					case DATASET_MIDI_CHANNEL_PU1:
+					case DATASET_MIDI_CHANNEL_PU2:
+					case DATASET_MIDI_CHANNEL_WAV:
+					case DATASET_MIDI_CHANNEL_NOI:
 						inc=1;
 					default:
 						if(up) {
@@ -62,7 +67,7 @@ void setDataValue(void)
 							}
 						}
 					}
-				parameterLock[x] = 1;
+				if(x < DATASET_SOUND_COUNT) parameterLock[x] = 1;
 				updateValueSynth(x);
 			}
 		}

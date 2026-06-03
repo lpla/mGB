@@ -51,6 +51,16 @@ void serialSetup(void);
 #define SAVE_CHECKSUM_OFFSET 513U
 #define WAV_DATA_MAX_OFFSET 240U
 
+#define DATASET_SOUND_COUNT 24U
+#define DATASET_MIDI_CHANNEL_PU1 28U
+#define DATASET_MIDI_CHANNEL_PU2 29U
+#define DATASET_MIDI_CHANNEL_WAV 30U
+#define DATASET_MIDI_CHANNEL_NOI 31U
+#define DATASET_MIDI_CHANNEL_POLY 32U
+#define DATASET_COUNT 33U
+#define TABLE_DATA_COUNT 32U
+#define MIDI_CHANNEL_COUNT 16U
+
 
 #define RGB_LIGHT      RGB( 23, 29, 31)
 #define RGB_DARK       RGB( 0, 0, 2)
@@ -439,7 +449,7 @@ const UBYTE helpdata[10][18] =
 		{26,11,24,0,0,0,0,0,0,0,     0,0,0,0,13,13,2,1},
 		{26,28,15,29,15,30,0,0,0,0,  0,0,0,0,13,13,1,6},
 		{33,11,32,0,25,16,16,29,15,30,   0,0,0,0,13,13,1,3},
-		{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+		{23,19,14,19,0,13,18,0,0,0,0,0,0,0,13,13,1,16},
 };
 
 const UBYTE helpmap[4][9] =
@@ -496,8 +506,8 @@ UBYTE vibratoSpeed[4] = {1,1,1,1};
 UBYTE vibratoDepth[4] = {0,0,0,0};
 BOOLEAN vibratoSlope[4] = {0,0,0,0};
 
-UBYTE dataSetSnap[28];
-UBYTE dataSet[28] =
+UBYTE dataSetSnap[DATASET_SOUND_COUNT];
+UBYTE dataSet[DATASET_COUNT] =
 {
 	0x02, // 0   Transpose 0 - 6
 	0x00, // 1   Shape 0 - 3
@@ -531,6 +541,12 @@ UBYTE dataSet[28] =
 	0x00, // 25  Save 1
 	0x00, // 26  Save 2
 	0x00, // 27  Save 3
+
+	0x00, // 28  PU1 MIDI channel 1 - 16
+	0x01, // 29  PU2 MIDI channel 1 - 16
+	0x02, // 30  WAV MIDI channel 1 - 16
+	0x03, // 31  NOI MIDI channel 1 - 16
+	0x04, // 32  POLY MIDI channel 1 - 16
 };
 
 UBYTE currentScreen;
@@ -547,13 +563,13 @@ const UBYTE synthAddress[4][2] =
 
 const UBYTE tableCursorLookup[4][9] =
 {
-	{ 0,  1, 2,  3,  4, 5, 6,255,24},
-	{ 7,  8, 9,255, 10,11,12,255,25},
-	{13, 14,15, 16, 17,18,19,255,26},
-	{20,255,21,255,255,22,23,255,27}
+	{ 0,  1, 2,  3,  4, 5, 6,28,24},
+	{ 7,  8, 9,255, 10,11,12,29,25},
+	{13, 14,15, 16, 17,18,19,30,26},
+	{20,255,21,255,255,22,23,31,27}
 };
 
-const UBYTE tableData[28][3] =
+const UBYTE tableData[TABLE_DATA_COUNT][3] =
 {
 	{3,5,6},
 	{3,6,4},
@@ -587,6 +603,11 @@ const UBYTE tableData[28][3] =
 	{7,13,16},
 	{11,13,16},
 	{15,13,16},
+
+	{3,12,MIDI_CHANNEL_COUNT},
+	{7,12,MIDI_CHANNEL_COUNT},
+	{11,12,MIDI_CHANNEL_COUNT},
+	{15,12,MIDI_CHANNEL_COUNT},
 };
 
 const UBYTE octmap[6][2] =

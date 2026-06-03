@@ -126,15 +126,26 @@ ret
 _asmEventMidiNote$::
 	ld	A,B
 	AND	#0x0F
-	cp	#0x00
+	ld	C,A
+	ld	hl,#_dataSet + 28
+	ld	A,C
+	cp	(hl)
 		jp z,_asmPlayNotePu1;
-	cp	#0x01
+	ld	hl,#_dataSet + 29
+	ld	A,C
+	cp	(hl)
 		jp z,_asmPlayNotePu2$;
-	cp	#0x02
+	ld	hl,#_dataSet + 30
+	ld	A,C
+	cp	(hl)
 		jp z,_asmPlayNoteWav$;
-	cp	#0x03
+	ld	hl,#_dataSet + 31
+	ld	A,C
+	cp	(hl)
 		jp z,_asmPlayNoteNoi$;
-	cp	#0x04
+	ld	hl,#_dataSet + 32
+	ld	A,C
+	cp	(hl)
 		jp z,_asmPlayNotePoly$;
 pop	bc
 ret
@@ -142,15 +153,26 @@ ret
 _asmEventMidiCC$::
 	ld	A,B
 	AND	#0x0F
-	cp	#0x00
+	ld	C,A
+	ld	hl,#_dataSet + 28
+	ld	A,C
+	cp	(hl)
 		jp z,_asmEventMidiCCPu1$;
-	cp	#0x01
+	ld	hl,#_dataSet + 29
+	ld	A,C
+	cp	(hl)
 		jp z,_asmEventMidiCCPu2$;
-	cp	#0x02
+	ld	hl,#_dataSet + 30
+	ld	A,C
+	cp	(hl)
 		jp z,_asmEventMidiCCWav$;
-	cp	#0x03
+	ld	hl,#_dataSet + 31
+	ld	A,C
+	cp	(hl)
 		jp z,_asmEventMidiCCNoi$;
-	cp	#0x04
+	ld	hl,#_dataSet + 32
+	ld	A,C
+	cp	(hl)
 		jp z,_asmEventMidiCCPoly$;
 pop	bc
 ret
@@ -158,15 +180,26 @@ ret
 _asmEventMidiPB$::
 	ld	A,B
 	AND	#0x0F
-	cp	#0x00
+	ld	C,A
+	ld	hl,#_dataSet + 28
+	ld	A,C
+	cp	(hl)
 		jp z,_asmPu1MidiPb$;
-	cp	#0x01
+	ld	hl,#_dataSet + 29
+	ld	A,C
+	cp	(hl)
 		jp z,_asmPu2MidiPb$;
-	cp	#0x02
+	ld	hl,#_dataSet + 30
+	ld	A,C
+	cp	(hl)
 		jp z,_asmWavMidiPb$;
-	cp	#0x03
+	ld	hl,#_dataSet + 31
+	ld	A,C
+	cp	(hl)
 		jp z,_asmNoiMidiPb$;
-	cp	#0x04
+	ld	hl,#_dataSet + 32
+	ld	A,C
+	cp	(hl)
 		jp z,_asmPolyMidiPb$;
 pop	bc
 ret
@@ -174,15 +207,26 @@ ret
 _asmEventMidiPC$::
 	ld	A,B
 	AND	#0x0F
-	cp	#0x00
+	ld	C,A
+	ld	hl,#_dataSet + 28
+	ld	A,C
+	cp	(hl)
 		jp z,_asmPu1Lod$;
-	cp	#0x01
+	ld	hl,#_dataSet + 29
+	ld	A,C
+	cp	(hl)
 		jp z,_asmPu2Lod$;
-	cp	#0x02
+	ld	hl,#_dataSet + 30
+	ld	A,C
+	cp	(hl)
 		jp z,_asmWavLod$;
-	cp	#0x03
+	ld	hl,#_dataSet + 31
+	ld	A,C
+	cp	(hl)
 		jp z,_asmNoiLod$;
-	cp	#0x04
+	ld	hl,#_dataSet + 32
+	ld	A,C
+	cp	(hl)
 		jp z,_asmPolyLod$;
 pop	bc
 ret
@@ -1246,47 +1290,74 @@ pop	bc
 ret
 
 _asmPolyWav$::
-	call _asmPu1Wav$;
-push	bc
-	call _asmPu2Wav$;
-push	bc
-	call _asmWavWav$;
-ret
+	ld	bc,#_asmPolyWavPu2$
+	push	bc
+	push	bc
+	jp _asmPu1Wav$;
+_asmPolyWavPu2$::
+	ld	bc,#_asmPolyWavWav$
+	push	bc
+	push	bc
+	jp _asmPu2Wav$;
+_asmPolyWavWav$::
+	jp _asmWavWav$;
 
 _asmPolyEnv$::
-	call _asmPu1Env$;
-push	bc
-	call _asmPu2Env$;
-ret
+	ld	bc,#_asmPolyEnvPu2$
+	push	bc
+	push	bc
+	jp _asmPu1Env$;
+_asmPolyEnvPu2$::
+	jp _asmPu2Env$;
 
 _asmPolyLod$::
-	call _asmPu1Lod$;
-push	bc
-	call _asmPu2Lod$;
-push	bc
-	call _asmWavLod$;
-ret
+	ld	bc,#_asmPolyLodPu2$
+	push	bc
+	push	bc
+	jp _asmPu1Lod$;
+_asmPolyLodPu2$::
+	ld	bc,#_asmPolyLodWav$
+	push	bc
+	push	bc
+	jp _asmPu2Lod$;
+_asmPolyLodWav$::
+	jp _asmWavLod$;
 
 _asmPolyPan$::
-	call _asmPu1Pan$;
-push	bc
-	call _asmPu2Pan$;
-push	bc
-	call _asmWavPan$;
-ret
+	ld	bc,#_asmPolyPanPu2$
+	push	bc
+	push	bc
+	jp _asmPu1Pan$;
+_asmPolyPanPu2$::
+	ld	bc,#_asmPolyPanWav$
+	push	bc
+	push	bc
+	jp _asmPu2Pan$;
+_asmPolyPanWav$::
+	jp _asmWavPan$;
 
 _asmPolySus$::
-	call _asmPu1Sus$;
-push	bc
-	call _asmPu2Sus$;
-push	bc
-	call _asmWavSus$;
-ret
+	ld	bc,#_asmPolySusPu2$
+	push	bc
+	push	bc
+	jp _asmPu1Sus$;
+_asmPolySusPu2$::
+	ld	bc,#_asmPolySusWav$
+	push	bc
+	push	bc
+	jp _asmPu2Sus$;
+_asmPolySusWav$::
+	jp _asmWavSus$;
 
 _asmPolyNf$::
-	call _asmPu1Nf$;
-push	bc
-	call _asmPu2Nf$;
-push	bc
-	call _asmWavNf$;
-ret
+	ld	bc,#_asmPolyNfPu2$
+	push	bc
+	push	bc
+	jp _asmPu1Nf$;
+_asmPolyNfPu2$::
+	ld	bc,#_asmPolyNfWav$
+	push	bc
+	push	bc
+	jp _asmPu2Nf$;
+_asmPolyNfWav$::
+	jp _asmWavNf$;

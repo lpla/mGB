@@ -37,10 +37,14 @@ class Case:
     expected: dict[str, int] = dataclasses.field(default_factory=dict)
     stable_baseline: bool = False
     min_sound_delta: int = 0
+    expected_exact: dict[str, int] = dataclasses.field(default_factory=dict)
+    exact_sound_delta: int | None = None
     modes: tuple[str, ...] = MODES
     roms: tuple[str, ...] = ROMS
     instances: int = 1
     press_start: bool = False
+    channel_map: tuple[int, int, int, int, int] | None = None
+    joypad_script: str | None = None
     save_fixture: str = "none"
     settle_frames: int | None = None
     expect_panic_silenced: bool = False
@@ -72,6 +76,9 @@ def stress_bytes(iterations: int = 20) -> str:
         data.extend((0xF8, on, note, velocity, 0xF8, off, note, 0x00))
     return h(*data)
 
+
+PU1_CH9_JOYPAD_SCRIPT = ",".join(("down",) * 7 + ("a+right",) * 8)
+RUNTIME_CHANNEL_MAP = (8, 9, 10, 11, 12)
 
 STANDARD_CASES = (
     Case("baseline", "", stable_baseline=True),
@@ -197,6 +204,82 @@ SPECIAL_CASES = (
         min_sound_delta=10,
         expect_panic_silenced=True,
     ),
+    Case(
+        "runtime_channel_map_old_channels_ignored",
+        h(
+            0x90, 0x3C, 0x64,
+            0x91, 0x3E, 0x64,
+            0x92, 0x40, 0x64,
+            0x93, 0x2A, 0x64,
+            0x94, 0x43, 0x64,
+        ),
+        roms=("current",),
+        channel_map=RUNTIME_CHANNEL_MAP,
+        expected_exact={
+            "trigger_pu1": 0,
+            "trigger_pu2": 0,
+            "trigger_wav": 0,
+            "trigger_noi": 0,
+        },
+        exact_sound_delta=0,
+    ),
+    Case(
+        "runtime_channel_map_notes",
+        h(
+            0x98, 0x3C, 0x64, 0x88, 0x3C, 0x00,
+            0x99, 0x3E, 0x64, 0x89, 0x3E, 0x00,
+            0x9A, 0x40, 0x64, 0x8A, 0x40, 0x00,
+            0x9B, 0x2A, 0x64, 0x8B, 0x2A, 0x00,
+        ),
+        {"trigger_pu1": 1, "trigger_pu2": 1, "trigger_noi": 1},
+        min_sound_delta=12,
+        roms=("current",),
+        channel_map=RUNTIME_CHANNEL_MAP,
+    ),
+    Case(
+        "runtime_channel_map_poly",
+        h(
+            0x9C, 0x3C, 0x64,
+            0x9C, 0x40, 0x64,
+            0x9C, 0x43, 0x64,
+            0x8C, 0x3C, 0x00,
+            0x8C, 0x40, 0x00,
+            0x8C, 0x43, 0x00,
+        ),
+        {"trigger_pu1": 1, "trigger_pu2": 1},
+        min_sound_delta=10,
+        roms=("current",),
+        channel_map=RUNTIME_CHANNEL_MAP,
+    ),
+    Case(
+        "runtime_channel_map_cc_pan",
+        h(0xB8, 0x0A, 0x00, 0xB9, 0x0A, 0x7F, 0xBA, 0x0A, 0x00, 0xBB, 0x0A, 0x7F),
+        min_sound_delta=4,
+        roms=("current",),
+        channel_map=RUNTIME_CHANNEL_MAP,
+    ),
+    Case(
+        "runtime_channel_map_poly_cc_controls",
+        h(0xBC, 0x0A, 0x40, 0xBC, 0x40, 0x7F, 0xBC, 0x40, 0x00, 0xBC, 0x7B, 0x00),
+        min_sound_delta=4,
+        roms=("current",),
+        channel_map=RUNTIME_CHANNEL_MAP,
+    ),
+    Case(
+        "runtime_channel_map_program_change",
+        h(0xC8, 0x01, 0xC9, 0x01, 0xCA, 0x01, 0xCB, 0x01, 0xCC, 0x01),
+        min_sound_delta=4,
+        roms=("current",),
+        channel_map=RUNTIME_CHANNEL_MAP,
+    ),
+    Case(
+        "ui_channel_row_pu1_ch9",
+        h(0x90, 0x3C, 0x64, 0x98, 0x3E, 0x64),
+        expected_exact={"trigger_pu1": 1},
+        min_sound_delta=3,
+        roms=("current",),
+        joypad_script=PU1_CH9_JOYPAD_SCRIPT,
+    ),
     Case("save_empty", "", roms=("current",), save_fixture="empty", expect_save_valid=True),
     Case("save_ff", "", roms=("current",), save_fixture="ff", expect_save_valid=True),
     Case("save_pattern", "", roms=("current",), save_fixture="pattern", expect_save_valid=True),
@@ -311,6 +394,7 @@ def read_symbol(path: Path, symbol: str) -> int:
 def current_symbols() -> dict[str, int]:
     noi = REPO / "Source/mgb.noi"
     return {
+        "dataSet": read_symbol(noi, "dataSet"),
         "saveData": read_symbol(noi, "saveData"),
         "checkMemory": read_symbol(noi, "checkMemory"),
     }
@@ -375,6 +459,17 @@ def run_case(
     ]
     if case.press_start:
         cmd.append("--press-start")
+    if case.channel_map is not None:
+        cmd.extend(
+            [
+                "--channel-map",
+                ",".join(str(channel) for channel in case.channel_map),
+                "--data-set-addr",
+                hex(symbols["dataSet"]),
+            ]
+        )
+    if case.joypad_script is not None:
+        cmd.extend(["--joypad-script", case.joypad_script])
     if case.save_fixture != "none":
         cmd.extend(
             [
@@ -444,6 +539,12 @@ def analyze(results: list[dict[str, str]], cases: tuple[Case, ...]) -> tuple[lis
                             failures.append(
                                 f"{label}: {key} delta {delta}, expected at least {expected_min}"
                             )
+                    for key, expected in case.expected_exact.items():
+                        delta = trigger_delta(row, baseline, key)
+                        if delta != expected:
+                            failures.append(
+                                f"{label}: {key} delta {delta}, expected exactly {expected}"
+                            )
                     if case.min_sound_delta:
                         sound_delta = int_value(row, "sound_writes") - int_value(baseline, "sound_writes")
                         if sound_delta < case.min_sound_delta:
@@ -451,6 +552,17 @@ def analyze(results: list[dict[str, str]], cases: tuple[Case, ...]) -> tuple[lis
                                 f"{label}: sound_writes delta {sound_delta}, "
                                 f"expected at least {case.min_sound_delta}"
                             )
+                    if case.exact_sound_delta is not None:
+                        sound_delta = int_value(row, "sound_writes") - int_value(baseline, "sound_writes")
+                        if sound_delta != case.exact_sound_delta:
+                            failures.append(
+                                f"{label}: sound_writes delta {sound_delta}, "
+                                f"expected exactly {case.exact_sound_delta}"
+                            )
+                if case.channel_map is not None and int_value(row, "channel_map_applied") != 1:
+                    failures.append(f"{label}: channel map was not applied")
+                if case.joypad_script is not None and int_value(row, "joypad_script_ran") != 1:
+                    failures.append(f"{label}: joypad script did not run")
                 if case.expect_panic_silenced and int_value(row, "panic_silenced") != 1:
                     failures.append(f"{label}: panic_silenced={row['panic_silenced']}, expected 1")
                 if case.expect_save_valid:
@@ -544,6 +656,9 @@ def write_results(path: Path, results: list[dict[str, str]]) -> None:
         "sram_fixture",
         "save_fixture",
         "save_fixture_applied",
+        "channel_map",
+        "channel_map_applied",
+        "joypad_script_ran",
         "start_pressed",
         "bytes_sent",
         "sound_writes",
@@ -605,7 +720,12 @@ def main() -> int:
     print("ROM SHA-1:")
     for label in ROMS:
         print(f"  {label}: {sha1(roms[label])}")
-    print(f"Symbols: saveData=0x{symbols['saveData']:04X} checkMemory=0x{symbols['checkMemory']:04X}")
+    print(
+        "Symbols: "
+        f"dataSet=0x{symbols['dataSet']:04X} "
+        f"saveData=0x{symbols['saveData']:04X} "
+        f"checkMemory=0x{symbols['checkMemory']:04X}"
+    )
 
     results: list[dict[str, str]] = []
     total = sum(len(case.roms) * len(case.modes) for case in ALL_CASES)

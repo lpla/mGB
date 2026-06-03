@@ -82,6 +82,20 @@ void updateDisplayValue(UBYTE p,UBYTE v)
 			bkg[0]=1+(0x0F & v);
 			set_bkg_tiles(tableData[p][0],tableData[p][1],2,1,bkg);
 			break;
+		case DATASET_MIDI_CHANNEL_PU1:
+		case DATASET_MIDI_CHANNEL_PU2:
+		case DATASET_MIDI_CHANNEL_WAV:
+		case DATASET_MIDI_CHANNEL_NOI:
+			v++;
+			if(v >= 10U) {
+				bkg[0]=2U;
+				bkg[1]=1U+(v-10U);
+			} else {
+				bkg[0]=0U;
+				bkg[1]=1U+v;
+			}
+			set_bkg_tiles(tableData[p][0],tableData[p][1],2,1,bkg);
+			break;
 		default:
 			break;
 		}
@@ -204,7 +218,7 @@ void showMainScreen(void)
 	bkg[0]=68;set_bkg_tiles(11,3,1,1,bkg);
 	bkg[0]=69;set_bkg_tiles(15,3,1,1,bkg);
 
-	for(j=0;j!=28;j++) {
+	for(j=0;j!=TABLE_DATA_COUNT;j++) {
 		bkg[0] = bkg[1] = 1;
 		set_bkg_tiles(tableData[j][0],tableData[j][1],2,1,bkg);
 	}

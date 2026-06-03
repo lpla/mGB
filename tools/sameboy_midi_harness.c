@@ -14,6 +14,17 @@
 #define FNV64_PRIME 1099511628211ull
 #define TICKS_PER_FRAME 139810ull
 #define MAX_INSTANCES 4
+#define MGB_MIDI_CHANNEL_BASE 28
+#define MGB_MIDI_CHANNEL_COUNT 5
+
+#define JOY_A      0x0001u
+#define JOY_B      0x0002u
+#define JOY_SELECT 0x0004u
+#define JOY_START  0x0008u
+#define JOY_RIGHT  0x0010u
+#define JOY_LEFT   0x0020u
+#define JOY_UP     0x0040u
+#define JOY_DOWN   0x0080u
 
 typedef struct {
     unsigned sound_writes;
@@ -37,6 +48,8 @@ typedef struct {
     const struct HarnessConfig *config;
     int timed_out;
     int save_fixture_applied;
+    int channel_map_applied;
+    int joypad_script_ran;
 } HarnessInstance;
 
 typedef struct HarnessConfig {
@@ -45,10 +58,15 @@ typedef struct HarnessConfig {
     const char *mode;
     const char *label;
     const char *bytes_text;
+    const char *channel_map_text;
+    const char *joypad_script;
     const char *sram_fixture;
     const char *save_fixture;
     uint16_t save_data_addr;
     uint16_t check_memory_addr;
+    uint16_t data_set_addr;
+    uint8_t channel_map[MGB_MIDI_CHANNEL_COUNT];
+    unsigned channel_map_count;
     unsigned instances;
     unsigned warmup_frames;
     unsigned settle_frames;
@@ -58,6 +76,8 @@ typedef struct HarnessConfig {
     unsigned start_delay_frames;
     unsigned start_hold_frames;
     unsigned post_start_frames;
+    unsigned joypad_hold_frames;
+    unsigned joypad_release_frames;
     uint64_t serial_wait_ticks;
 } HarnessConfig;
 
@@ -248,6 +268,41 @@ static int parse_hex_bytes(const char *text, uint8_t *bytes, size_t capacity, si
     return 0;
 }
 
+static int parse_channel_map(const char *text, uint8_t *channels, unsigned *count)
+{
+    const char *p = text;
+    *count = 0;
+
+    while (*p) {
+        while (*p == ' ' || *p == ',' || *p == '\t' || *p == '\r' || *p == '\n') {
+            p++;
+        }
+        if (!*p) {
+            break;
+        }
+        if (*count == MGB_MIDI_CHANNEL_COUNT) {
+            fprintf(stderr, "too many MIDI channel entries; expected %u\n", MGB_MIDI_CHANNEL_COUNT);
+            return -1;
+        }
+
+        char *end = NULL;
+        unsigned long value = strtoul(p, &end, 0);
+        if (end == p || value > 0x0F) {
+            fprintf(stderr, "bad MIDI channel nibble near: %s\n", p);
+            return -1;
+        }
+
+        channels[(*count)++] = (uint8_t)value;
+        p = end;
+    }
+
+    if (*count && *count != MGB_MIDI_CHANNEL_COUNT) {
+        fprintf(stderr, "MIDI channel map needs exactly %u entries\n", MGB_MIDI_CHANNEL_COUNT);
+        return -1;
+    }
+    return 0;
+}
+
 static uint64_t final_apu_hash(GB_gameboy_t *gb)
 {
     uint64_t hash = FNV64_OFFSET;
@@ -343,6 +398,28 @@ static uint8_t *wram_ptr_for_addr(GB_gameboy_t *gb, uint16_t addr, size_t length
         return NULL;
     }
     return ram + (addr - 0xC000);
+}
+
+static void apply_channel_map(HarnessInstance *instance)
+{
+    const HarnessConfig *config = instance->config;
+    if (!config || !config->data_set_addr || config->channel_map_count != MGB_MIDI_CHANNEL_COUNT) {
+        return;
+    }
+
+    uint8_t *data_set = wram_ptr_for_addr(
+        instance->gb,
+        config->data_set_addr,
+        MGB_MIDI_CHANNEL_BASE + MGB_MIDI_CHANNEL_COUNT
+    );
+    if (!data_set) {
+        return;
+    }
+
+    for (unsigned i = 0; i < MGB_MIDI_CHANNEL_COUNT; i++) {
+        data_set[MGB_MIDI_CHANNEL_BASE + i] = config->channel_map[i] & 0x0F;
+    }
+    instance->channel_map_applied = 1;
 }
 
 static void seed_save_fixture(uint8_t *save_data, const char *fixture)
@@ -491,16 +568,108 @@ static void set_start_for_all(HarnessInstance *instances, unsigned count, bool p
     }
 }
 
+static int key_bit_from_name(const char *name, size_t length)
+{
+    if (length == 1 && name[0] == 'a') return JOY_A;
+    if (length == 1 && name[0] == 'b') return JOY_B;
+    if (length == 2 && name[0] == 'u' && name[1] == 'p') return JOY_UP;
+    if (length == 4 && memcmp(name, "down", 4) == 0) return JOY_DOWN;
+    if (length == 4 && memcmp(name, "left", 4) == 0) return JOY_LEFT;
+    if (length == 5 && memcmp(name, "right", 5) == 0) return JOY_RIGHT;
+    if (length == 5 && memcmp(name, "start", 5) == 0) return JOY_START;
+    if (length == 6 && memcmp(name, "select", 6) == 0) return JOY_SELECT;
+    return 0;
+}
+
+static int parse_joypad_combo(const char *token, uint16_t *mask)
+{
+    const char *part = token;
+    *mask = 0;
+
+    while (*part) {
+        const char *end = part;
+        while (*end && *end != '+') {
+            end++;
+        }
+        int bit = key_bit_from_name(part, (size_t)(end - part));
+        if (!bit) {
+            fprintf(stderr, "bad joypad token: %s\n", token);
+            return -1;
+        }
+        *mask |= (uint16_t)bit;
+        part = *end == '+' ? end + 1 : end;
+    }
+
+    return *mask ? 0 : -1;
+}
+
+static void set_key_mask_all(HarnessInstance *instances, unsigned count, uint16_t mask, bool pressed)
+{
+    for (unsigned i = 0; i < count; i++) {
+        GB_gameboy_t *gb = instances[i].gb;
+        if (mask & JOY_A) GB_set_key_state(gb, GB_KEY_A, pressed);
+        if (mask & JOY_B) GB_set_key_state(gb, GB_KEY_B, pressed);
+        if (mask & JOY_SELECT) GB_set_key_state(gb, GB_KEY_SELECT, pressed);
+        if (mask & JOY_START) GB_set_key_state(gb, GB_KEY_START, pressed);
+        if (mask & JOY_RIGHT) GB_set_key_state(gb, GB_KEY_RIGHT, pressed);
+        if (mask & JOY_LEFT) GB_set_key_state(gb, GB_KEY_LEFT, pressed);
+        if (mask & JOY_UP) GB_set_key_state(gb, GB_KEY_UP, pressed);
+        if (mask & JOY_DOWN) GB_set_key_state(gb, GB_KEY_DOWN, pressed);
+    }
+}
+
+static int run_joypad_script(HarnessInstance *instances, unsigned count, const HarnessConfig *config)
+{
+    if (!config->joypad_script || !config->joypad_script[0]) {
+        return 0;
+    }
+
+    char script[2048];
+    if (strlen(config->joypad_script) >= sizeof(script)) {
+        fprintf(stderr, "joypad script is too long\n");
+        return -1;
+    }
+    strcpy(script, config->joypad_script);
+
+    char *token = strtok(script, ", \t\r\n");
+    while (token) {
+        if (strncmp(token, "wait:", 5) == 0) {
+            unsigned frames = (unsigned)strtoul(token + 5, NULL, 0);
+            run_all_ticks(instances, count, TICKS_PER_FRAME * frames);
+        }
+        else {
+            uint16_t mask = 0;
+            if (parse_joypad_combo(token, &mask)) {
+                return -1;
+            }
+            set_key_mask_all(instances, count, mask, true);
+            run_all_ticks(instances, count, TICKS_PER_FRAME * config->joypad_hold_frames);
+            set_key_mask_all(instances, count, mask, false);
+            run_all_ticks(instances, count, TICKS_PER_FRAME * config->joypad_release_frames);
+        }
+        token = strtok(NULL, ", \t\r\n");
+    }
+
+    for (unsigned i = 0; i < count; i++) {
+        instances[i].joypad_script_ran = 1;
+    }
+    return 0;
+}
+
 static int parse_args(int argc, char **argv, HarnessConfig *config)
 {
     *config = (HarnessConfig) {
         .mode = "cgb",
         .label = "scenario",
         .bytes_text = "",
+        .channel_map_text = "",
+        .joypad_script = "",
         .sram_fixture = "none",
         .save_fixture = "none",
         .save_data_addr = 0,
         .check_memory_addr = 0,
+        .data_set_addr = 0,
+        .channel_map_count = 0,
         .instances = 1,
         .warmup_frames = 600,
         .settle_frames = 120,
@@ -510,6 +679,8 @@ static int parse_args(int argc, char **argv, HarnessConfig *config)
         .start_delay_frames = 60,
         .start_hold_frames = 12,
         .post_start_frames = 120,
+        .joypad_hold_frames = 4,
+        .joypad_release_frames = 4,
         .serial_wait_ticks = TICKS_PER_FRAME * 4,
     };
 
@@ -522,6 +693,8 @@ static int parse_args(int argc, char **argv, HarnessConfig *config)
         else if (strcmp(arg, "--mode") == 0) target = &config->mode;
         else if (strcmp(arg, "--label") == 0) target = &config->label;
         else if (strcmp(arg, "--bytes") == 0) target = &config->bytes_text;
+        else if (strcmp(arg, "--channel-map") == 0) target = &config->channel_map_text;
+        else if (strcmp(arg, "--joypad-script") == 0) target = &config->joypad_script;
         else if (strcmp(arg, "--sram-fixture") == 0) target = &config->sram_fixture;
         else if (strcmp(arg, "--save-fixture") == 0) target = &config->save_fixture;
 
@@ -547,8 +720,11 @@ static int parse_args(int argc, char **argv, HarnessConfig *config)
             strcmp(arg, "--start-delay-frames") == 0 ||
             strcmp(arg, "--start-hold-frames") == 0 ||
             strcmp(arg, "--post-start-frames") == 0 ||
+            strcmp(arg, "--joypad-hold-frames") == 0 ||
+            strcmp(arg, "--joypad-release-frames") == 0 ||
             strcmp(arg, "--save-data-addr") == 0 ||
-            strcmp(arg, "--check-memory-addr") == 0) {
+            strcmp(arg, "--check-memory-addr") == 0 ||
+            strcmp(arg, "--data-set-addr") == 0) {
             if (++i == argc) {
                 fprintf(stderr, "%s needs a value\n", arg);
                 return -1;
@@ -562,8 +738,11 @@ static int parse_args(int argc, char **argv, HarnessConfig *config)
             else if (strcmp(arg, "--start-delay-frames") == 0) config->start_delay_frames = value;
             else if (strcmp(arg, "--start-hold-frames") == 0) config->start_hold_frames = value;
             else if (strcmp(arg, "--post-start-frames") == 0) config->post_start_frames = value;
+            else if (strcmp(arg, "--joypad-hold-frames") == 0) config->joypad_hold_frames = value;
+            else if (strcmp(arg, "--joypad-release-frames") == 0) config->joypad_release_frames = value;
             else if (strcmp(arg, "--save-data-addr") == 0) config->save_data_addr = (uint16_t)value;
-            else config->check_memory_addr = (uint16_t)value;
+            else if (strcmp(arg, "--check-memory-addr") == 0) config->check_memory_addr = (uint16_t)value;
+            else config->data_set_addr = (uint16_t)value;
             continue;
         }
 
@@ -584,6 +763,16 @@ static int parse_args(int argc, char **argv, HarnessConfig *config)
     if (config->instances < 1 || config->instances > MAX_INSTANCES) {
         fprintf(stderr, "--instances must be between 1 and %u\n", MAX_INSTANCES);
         return -1;
+    }
+
+    if (config->channel_map_text && config->channel_map_text[0]) {
+        if (parse_channel_map(config->channel_map_text, config->channel_map, &config->channel_map_count)) {
+            return -1;
+        }
+        if (!config->data_set_addr) {
+            fprintf(stderr, "--channel-map requires --data-set-addr\n");
+            return -1;
+        }
     }
 
     return 0;
@@ -690,6 +879,12 @@ int main(int argc, char **argv)
 
     run_all_ticks(instances, config.instances, TICKS_PER_FRAME * config.warmup_frames);
     for (unsigned i = 0; i < config.instances; i++) {
+        apply_channel_map(&instances[i]);
+    }
+    if (run_joypad_script(instances, config.instances, &config)) {
+        return 2;
+    }
+    for (unsigned i = 0; i < config.instances; i++) {
         reset_state(&instances[i].state);
     }
 
@@ -742,6 +937,9 @@ int main(int argc, char **argv)
     printf("sram_fixture=%s\n", config.sram_fixture);
     printf("save_fixture=%s\n", config.save_fixture);
     printf("save_fixture_applied=%u\n", first->save_fixture_applied ? 1 : 0);
+    printf("channel_map=%s\n", config.channel_map_text);
+    printf("channel_map_applied=%u\n", first->channel_map_applied ? 1 : 0);
+    printf("joypad_script_ran=%u\n", first->joypad_script_ran ? 1 : 0);
     printf("start_pressed=%u\n", config.press_start ? 1 : 0);
     printf("ok=%u\n", (timed_out == 0 && all_boot_finished && match) ? 1 : 0);
     printf("timeout=%u\n", timed_out ? 1 : 0);

@@ -159,9 +159,9 @@ void snapRecall(void)
 		}
 	} else {
 		if(!recallMode) {
-			for(j=0;j!=24;j++) dataSetSnap[j] = dataSet[j];
+			for(j=0;j!=DATASET_SOUND_COUNT;j++) dataSetSnap[j] = dataSet[j];
 		} else {
-			for(j=0;j!=24;j++) dataSet[j] = dataSetSnap[j];
+			for(j=0;j!=DATASET_SOUND_COUNT;j++) dataSet[j] = dataSetSnap[j];
 			updateDisplay();
 		}
 	}
@@ -185,5 +185,5 @@ void checkMemory(void)
 	}
 	DISABLE_RAM_MBC1;
 
-	for(j=0;j!=24;j++) dataSetSnap[j] = dataSet[j];
+	for(j=0;j!=DATASET_SOUND_COUNT;j++) dataSetSnap[j] = dataSet[j];
 }
