@@ -5,8 +5,37 @@ void printversion(void)
 
 void printhelp(void)
 {
-	j=helpmap[cursorColumn][cursorRowMain];
+	if(currentScreen == 3U) {
+		j=configHelpMap[cursorColumn][cursorRowMain];
+	} else {
+		j=helpmap[cursorColumn][cursorRowMain];
+	}
 	set_bkg_tiles(1,16,18,1,helpdata[j]);
+}
+
+void displayDecimalOneBased(UBYTE p, UBYTE v)
+{
+	v++;
+	if(v >= 10U) {
+		bkg[0]=2U;
+		bkg[1]=1U+(v-10U);
+	} else {
+		bkg[0]=0U;
+		bkg[1]=1U+v;
+	}
+	set_bkg_tiles(tableData[p][0],tableData[p][1],2,1,bkg);
+}
+
+void displayOnOff(UBYTE p, UBYTE v)
+{
+	if(v) {
+		bkg[0]=25U;
+		bkg[1]=24U;
+	} else {
+		bkg[0]=25U;
+		bkg[1]=16U;
+	}
+	set_bkg_tiles(tableData[p][0],tableData[p][1],2,1,bkg);
 }
 
 void updateDisplayValue(UBYTE p,UBYTE v)
@@ -86,23 +115,99 @@ void updateDisplayValue(UBYTE p,UBYTE v)
 		case DATASET_MIDI_CHANNEL_PU2:
 		case DATASET_MIDI_CHANNEL_WAV:
 		case DATASET_MIDI_CHANNEL_NOI:
-			v++;
-			if(v >= 10U) {
-				bkg[0]=2U;
-				bkg[1]=1U+(v-10U);
+		case DATASET_MIDI_CHANNEL_POLY:
+			if(v == MIDI_CHANNEL_OFF) {
+				bkg[0]=25U;
+				bkg[1]=16U;
+				set_bkg_tiles(tableData[p][0],tableData[p][1],2,1,bkg);
 			} else {
-				bkg[0]=0U;
+				displayDecimalOneBased(p,v);
+			}
+			break;
+		case DATASET_BASE_CHANNEL:
+			displayDecimalOneBased(p,v);
+			break;
+		case DATASET_CHANNEL_PROFILE:
+			if(!v) {
+				bkg[0]=23U;
+				bkg[1]=0U;
+			} else {
+				bkg[0]=17U;
 				bkg[1]=1U+v;
 			}
 			set_bkg_tiles(tableData[p][0],tableData[p][1],2,1,bkg);
 			break;
+		case DATASET_MPE_MODE:
+		case DATASET_LEGATO_MODE:
+			displayOnOff(p,v);
+			break;
+		case DATASET_VELOCITY_CURVE:
+			switch(v)
+				{
+				case 1U:
+					bkg[0]=29U;
+					bkg[1]=25U;
+					break;
+				case 2U:
+					bkg[0]=18U;
+					bkg[1]=11U;
+					break;
+				case 3U:
+					bkg[0]=16U;
+					bkg[1]=31U;
+					break;
+				default:
+					bkg[0]=22U;
+					bkg[1]=19U;
+				}
+			set_bkg_tiles(tableData[p][0],tableData[p][1],2,1,bkg);
+			break;
+		case DATASET_TUNING_MODE:
+			switch(v)
+				{
+				case 1U:
+					bkg[0]=20U;
+					bkg[1]=19U;
+					break;
+				case 2U:
+					bkg[0]=26U;
+					bkg[1]=33U;
+					break;
+				case 3U:
+					bkg[0]=2U;
+					bkg[1]=10U;
+					break;
+				case 4U:
+					bkg[0]=3U;
+					bkg[1]=5U;
+					break;
+				default:
+					bkg[0]=15U;
+					bkg[1]=27U;
+				}
+			set_bkg_tiles(tableData[p][0],tableData[p][1],2,1,bkg);
+			break;
 		default:
 			break;
+	}
+}
+
+void updateDisplayConfig(void)
+{
+	for(j=0;j!=0x04U;j++) {
+		for(i=0;i!=0x09U;i++) {
+			if(configCursorLookup[j][i] != 0xFFU) {
+				updateDisplayValue(configCursorLookup[j][i],dataSet[configCursorLookup[j][i]]);
+			}
 		}
+	}
 }
 
 void updateDisplaySynth(void)
 {
+	if(currentScreen == 3U) {
+		return;
+	}
   //printbyte(serialBufferPosition,serialBufferReadPosition,serialBuffer[serialBufferPosition]);
 	for(i=0;i!=0x09U;i++) {
 		if(tableCursorLookup[updateDisplaySynthCounter][i] != 0xFFU) {
@@ -114,6 +219,10 @@ void updateDisplaySynth(void)
 void updateDisplay(void)
 {
   UBYTE x=0;
+	if(currentScreen == 3U) {
+		updateDisplayConfig();
+		return;
+	}
 	for(j=0;j!=0x04U;j++) {
 		for(i=0;i!=0x09U;i++) {
 			if(tableCursorLookup[j][i] != 0xFFU) {
@@ -218,13 +327,39 @@ void showMainScreen(void)
 	bkg[0]=68;set_bkg_tiles(11,3,1,1,bkg);
 	bkg[0]=69;set_bkg_tiles(15,3,1,1,bkg);
 
-	for(j=0;j!=TABLE_DATA_COUNT;j++) {
+	for(j=0;j!=MAIN_TABLE_DATA_COUNT;j++) {
 		bkg[0] = bkg[1] = 1;
 		set_bkg_tiles(tableData[j][0],tableData[j][1],2,1,bkg);
 	}
 
 	updateDisplay();
 	showCursor();
+}
+
+void showConfigScreen(void)
+{
+	cls();
+	currentScreen = 3U;
+	bkg[0]=13U;
+	bkg[1]=16U;
+	bkg[2]=17U;
+	set_bkg_tiles(1,3,3,1,bkg);
+	for(j=DATASET_MIDI_CHANNEL_POLY;j!=TABLE_DATA_COUNT;j++) {
+		bkg[0] = bkg[1] = 1;
+		set_bkg_tiles(tableData[j][0],tableData[j][1],2,1,bkg);
+	}
+	updateDisplayConfig();
+	showCursor();
+}
+
+void toggleConfigScreen(void)
+{
+	if(currentScreen == 3U) {
+		showMainScreen();
+	} else {
+		DISPLAY_ON;
+		showConfigScreen();
+	}
 }
 
 void showSplashScreen(void)

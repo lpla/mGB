@@ -4,9 +4,34 @@ void clearParameterLocks(void)
 	for(j=0;j!=DATASET_SOUND_COUNT;j++) parameterLock[j] = 0;
 }
 
+void resetPerformanceControllers(void)
+{
+	for(j=0;j!=4;j++) {
+		pbWheelIn[j] = PBWHEEL_CENTER;
+		pbWheelInLast[j] = PBWHEEL_CENTER;
+		pbWheelActive[j] = 0;
+		vibratoDepth[j] = 0;
+		vibratoPosition[j] = 0;
+	}
+	pu1Sus = pu2Sus = wavSus = noiSus = 0;
+	pu1NoteOffTrigger = pu2NoteOffTrigger = wavNoteOffTrigger = noiNoteOffTrigger = 0;
+}
+
+void panicSynths(void)
+{
+	NR12_REG = 0;
+	NR22_REG = 0;
+	NR32_REG = 0;
+	NR42_REG = 0;
+	resetPerformanceControllers();
+	for(j=0;j!=8;j++) noteStatus[j] = 0;
+	polyNoteState[0] = polyNoteState[1] = polyNoteState[2] = 0;
+}
+
 void setDataValue(void)
 {
 	BOOLEAN up=0;
+	BOOLEAN refreshDisplay=0;
 	UBYTE inc=1;
 	systemIdle = 0;
 
@@ -26,8 +51,14 @@ void setDataValue(void)
 	}
 	if(j) {
 		for(j=0;j!=4;j++) {
-			if(cursorEnable[j] && tableCursorLookup[j][cursorRow[j]] != 0xFFU) {
-				x = tableCursorLookup[j][cursorRow[j]];
+			if(cursorEnable[j] &&
+				 ((currentScreen == 3U && configCursorLookup[j][cursorRow[j]] != 0xFFU) ||
+				  (currentScreen != 3U && tableCursorLookup[j][cursorRow[j]] != 0xFFU))) {
+				if(currentScreen == 3U) {
+					x = configCursorLookup[j][cursorRow[j]];
+				} else {
+					x = tableCursorLookup[j][cursorRow[j]];
+				}
 				l = tableData[x][2];
 				inc = ((i & J_UP) || (i & J_DOWN)) ? 16U : 1U;
 				switch(x)
@@ -54,6 +85,13 @@ void setDataValue(void)
 					case DATASET_MIDI_CHANNEL_PU2:
 					case DATASET_MIDI_CHANNEL_WAV:
 					case DATASET_MIDI_CHANNEL_NOI:
+					case DATASET_MIDI_CHANNEL_POLY:
+					case DATASET_BASE_CHANNEL:
+					case DATASET_CHANNEL_PROFILE:
+					case DATASET_MPE_MODE:
+					case DATASET_VELOCITY_CURVE:
+					case DATASET_TUNING_MODE:
+					case DATASET_LEGATO_MODE:
 						inc=1;
 					default:
 						if(up) {
@@ -67,10 +105,15 @@ void setDataValue(void)
 							}
 						}
 					}
+				if(x >= DATASET_MIDI_CHANNEL_PU1 && x <= DATASET_MIDI_CHANNEL_POLY) {
+					dataSet[DATASET_CHANNEL_PROFILE] = 0U;
+				}
 				if(x < DATASET_SOUND_COUNT) parameterLock[x] = 1;
 				updateValueSynth(x);
+				if(currentScreen == 3U || x >= DATASET_MIDI_CHANNEL_PU1) refreshDisplay = 1U;
 			}
 		}
+		if(refreshDisplay) updateDisplay();
 	}
 }
 
@@ -81,6 +124,11 @@ void getPad(void)
 	if(i != lastPadRead) {
 		lastPadRead = i;
 		if(i) {
+			if((i & J_SELECT) && (i & J_START) && !joyState[7]) {
+				joyState[7] = 1;
+				toggleConfigScreen();
+				return;
+			}
 			if((i & J_A) && !joyState[0]) {
 				joyState[0] = 1;
 				if (i & J_SELECT) {
@@ -152,19 +200,7 @@ void getPad(void)
 			}
 			if((i & J_START) && !joyState[7]) {
 				joyState[7] = 1;
-				NR12_REG = 0;
-				NR22_REG = 0;
-				NR32_REG = 0;
-				NR42_REG = 0;
-				for(j=0;j!=4;j++) {
-					pbWheelIn[j] = PBWHEEL_CENTER;
-					pbWheelInLast[j] = PBWHEEL_CENTER;
-					pbWheelActive[j] = 0;
-				}
-				for(j=0;j!=8;j++) noteStatus[j] = 0;
-				pu1Sus = pu2Sus = wavSus = noiSus = 0;
-				pu1NoteOffTrigger = pu2NoteOffTrigger = wavNoteOffTrigger = noiNoteOffTrigger = 0;
-				polyNoteState[0] = polyNoteState[1] = polyNoteState[2] = 0;
+				panicSynths();
 				return;
 			} else if (joyState[7]) {
 				joyState[7] = 0;

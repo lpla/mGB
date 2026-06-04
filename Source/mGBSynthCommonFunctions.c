@@ -47,6 +47,48 @@ void setWavDataOffsetFromDataSet(void)
 	wavDataOffset = (UBYTE)offset;
 }
 
+void applyTuningMode(void)
+{
+	if(dataSet[DATASET_TUNING_MODE] >= TUNING_MODE_COUNT) dataSet[DATASET_TUNING_MODE] = 0U;
+	for(i=0U;i!=NOTE_INDEX_MAX + 1U;i++) freq[i] = tuningTables[dataSet[DATASET_TUNING_MODE]][i];
+}
+
+void applyBaseChannel(void)
+{
+	UBYTE base;
+	base = dataSet[DATASET_BASE_CHANNEL];
+	if(base >= BASE_CHANNEL_COUNT) base = BASE_CHANNEL_COUNT - 1U;
+	dataSet[DATASET_BASE_CHANNEL] = base;
+	dataSet[DATASET_MIDI_CHANNEL_PU1] = base;
+	dataSet[DATASET_MIDI_CHANNEL_PU2] = base + 1U;
+	dataSet[DATASET_MIDI_CHANNEL_WAV] = base + 2U;
+	dataSet[DATASET_MIDI_CHANNEL_NOI] = base + 3U;
+	dataSet[DATASET_MIDI_CHANNEL_POLY] = base + 4U;
+	if(dataSet[DATASET_MIDI_CHANNEL_POLY] >= MIDI_CHANNEL_COUNT) {
+		dataSet[DATASET_MIDI_CHANNEL_POLY] = MIDI_CHANNEL_OFF;
+	}
+}
+
+void applyChannelProfile(void)
+{
+	switch(dataSet[DATASET_CHANNEL_PROFILE])
+		{
+		case 1U:
+			dataSet[DATASET_BASE_CHANNEL] = 0U;
+			break;
+		case 2U:
+			dataSet[DATASET_BASE_CHANNEL] = 4U;
+			break;
+		case 3U:
+			dataSet[DATASET_BASE_CHANNEL] = 8U;
+			break;
+		default:
+			dataSet[DATASET_CHANNEL_PROFILE] = 0U;
+			return;
+		}
+	applyBaseChannel();
+}
+
 void updateValueSynth(UBYTE p)
 {
 	switch(p)
@@ -130,6 +172,25 @@ void updateValueSynth(UBYTE p)
 			break;
 		case 23:
 			setOutputPanBySynth(3U,dataSet[p]);
+			break;
+		case DATASET_BASE_CHANNEL:
+			applyBaseChannel();
+			dataSet[DATASET_CHANNEL_PROFILE] = 0U;
+			break;
+		case DATASET_CHANNEL_PROFILE:
+			applyChannelProfile();
+			break;
+		case DATASET_MPE_MODE:
+			if(dataSet[p] > 1U) dataSet[p] = 1U;
+			break;
+		case DATASET_VELOCITY_CURVE:
+			if(dataSet[p] >= VELOCITY_CURVE_COUNT) dataSet[p] = 0U;
+			break;
+		case DATASET_TUNING_MODE:
+			applyTuningMode();
+			break;
+		case DATASET_LEGATO_MODE:
+			if(dataSet[p] > 1U) dataSet[p] = 1U;
 			break;
 		default:
 			break;

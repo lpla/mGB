@@ -101,12 +101,34 @@ those paths with `SAMEBOY_SRC=/path/to/SameBoy` and
 
 ## Button Shortcuts
  * Start: MIDI Panic
+ * Select + Start: Toggle the global setup screen.
  * Select + Dpad: Select multiple synths for editing.
  * Select + A: Toggles the screen on or off, better battery life, less noise, and faster response.
- * Select + B: Copys all parameters on screen while cursor is not on preset number.
+ * Select + B: Copies all parameters on screen while cursor is not on preset number.
  * B: Pastes all parameters while cursor is not on preset number
- * A + Dpad: Change parameter value 
+ * A + Dpad: Change parameter value
  * To load/save presets, put the cursor on the "PRESET" number, and hit B for load, Select+B to save
+
+On the global setup screen, B loads the saved global performance config and
+Select+B saves it. The setup screen is for live-wide settings, not per-synth
+presets.
+
+## Live Performance Setup
+
+The global setup screen adds runtime controls that do not require rebuilding the
+ROM:
+
+ * BASE: Sets the first MIDI channel for PU1/PU2/WAV/NOISE/POLY. Valid bases are 1 to 13.
+ * PROFILE: Manual, GB1, GB2, or GB3. GB1 maps channels 1-5, GB2 maps 5-9, and GB3 maps 9-13.
+ * MPE MODE: Enables channel pressure/poly aftertouch for volume and CC74 for timbre.
+ * VELOCITY: Linear, soft, hard, or full velocity response.
+ * TUNING: Equal temperament, just intonation, Pythagorean, 19-EDO, or 24-EDO.
+ * LEGATO: Suppresses pulse-channel retrigger for overlapping notes while still changing pitch.
+ * POLY CH: Sets the poly channel to 1-16 or OF for off.
+
+The normal synth screens still expose each synth's MIDI channel. Each channel can
+be set to 1-16 or OF for off; changing an individual synth channel switches the
+profile back to manual.
 
 ## MIDI Implementation
 Note: the name and number at the bottom left of the screen indicates the midi CC of the selected parameter.
@@ -158,3 +180,10 @@ Note: the name and number at the bottom left of the screen indicates the midi CC
   * cc5: Load Preset
   * cc10: pan
   * cc64: (sustain) turns off note off. <64 = off, >63 = on
+
+Additional live controls:
+
+ * cc74: Timbre in MPE mode only. Maps to pulse width, WAV shape, or NOISE envelope.
+ * cc120: Global panic/all sound off, regardless of the incoming MIDI channel.
+ * cc121: Global reset controllers, regardless of the incoming MIDI channel.
+ * Channel pressure and poly aftertouch: Volume/expression in MPE mode only.

@@ -44,11 +44,13 @@ class Case:
     instances: int = 1
     press_start: bool = False
     channel_map: tuple[int, int, int, int, int] | None = None
+    data_set_patch: dict[int, int] = dataclasses.field(default_factory=dict)
     joypad_script: str | None = None
     save_fixture: str = "none"
     settle_frames: int | None = None
     expect_panic_silenced: bool = False
     expect_save_valid: bool = False
+    expected_values: dict[str, str] = dataclasses.field(default_factory=dict)
 
     @property
     def byte_count(self) -> int:
@@ -77,8 +79,20 @@ def stress_bytes(iterations: int = 20) -> str:
     return h(*data)
 
 
-PU1_CH9_JOYPAD_SCRIPT = ",".join(("down",) * 7 + ("a+right",) * 8)
+PU1_CH9_JOYPAD_SCRIPT = ",".join(
+    token
+    for pair in [("down", "wait:6")] * 7 + [("a+right", "wait:8")] * 8
+    for token in pair
+)
+TUNING_JUST_JOYPAD_SCRIPT = "select+start,wait:20,right,wait:8,right,wait:8,a+right,wait:20"
+TUNING_19EDO_JOYPAD_SCRIPT = (
+    "select+start,wait:20,right,wait:8,right,wait:8,"
+    "a+right,wait:8,a+right,wait:8,a+right,wait:20"
+)
 RUNTIME_CHANNEL_MAP = (8, 9, 10, 11, 12)
+PATCH_MPE_ON = {35: 1}
+PATCH_VELOCITY_FULL = {36: 3}
+PATCH_LEGATO_ON = {38: 1}
 
 STANDARD_CASES = (
     Case("baseline", "", stable_baseline=True),
@@ -279,6 +293,111 @@ SPECIAL_CASES = (
         min_sound_delta=3,
         roms=("current",),
         joypad_script=PU1_CH9_JOYPAD_SCRIPT,
+        expected_values={"data_set_28": "8"},
+    ),
+    Case(
+        "persistent_global_channel_map",
+        h(
+            0x98, 0x3C, 0x64, 0x88, 0x3C, 0x00,
+            0x99, 0x3E, 0x64, 0x89, 0x3E, 0x00,
+            0x9A, 0x40, 0x64, 0x8A, 0x40, 0x00,
+            0x9B, 0x2A, 0x64, 0x8B, 0x2A, 0x00,
+        ),
+        {"trigger_pu1": 1, "trigger_pu2": 1, "trigger_noi": 1},
+        min_sound_delta=12,
+        roms=("current",),
+        save_fixture="valid_global_map",
+        expect_save_valid=True,
+    ),
+    Case(
+        "persistent_global_profile3",
+        h(
+            0x98, 0x3C, 0x64, 0x88, 0x3C, 0x00,
+            0x99, 0x3E, 0x64, 0x89, 0x3E, 0x00,
+            0x9A, 0x40, 0x64, 0x8A, 0x40, 0x00,
+            0x9B, 0x2A, 0x64, 0x8B, 0x2A, 0x00,
+        ),
+        {"trigger_pu1": 1, "trigger_pu2": 1, "trigger_noi": 1},
+        min_sound_delta=12,
+        roms=("current",),
+        save_fixture="valid_global_profile3",
+        expect_save_valid=True,
+    ),
+    Case(
+        "channel_off_pu1_ignored",
+        h(0x90, 0x3C, 0x64),
+        expected_exact={"trigger_pu1": 0},
+        exact_sound_delta=0,
+        roms=("current",),
+        data_set_patch={28: 16},
+    ),
+    Case(
+        "mpe_channel_pressure_pu1",
+        h(0x90, 0x3C, 0x20, 0xD0, 0x7F),
+        {"trigger_pu1": 1},
+        min_sound_delta=4,
+        roms=("current",),
+        data_set_patch=PATCH_MPE_ON,
+        expected_values={"nr12": "f6"},
+    ),
+    Case(
+        "mpe_cc74_timbre_pu1",
+        h(0xB0, 0x4A, 0x7F),
+        min_sound_delta=1,
+        roms=("current",),
+        data_set_patch=PATCH_MPE_ON,
+    ),
+    Case(
+        "velocity_curve_full_pu1",
+        h(0x90, 0x3C, 0x10),
+        {"trigger_pu1": 1},
+        min_sound_delta=3,
+        roms=("current",),
+        data_set_patch=PATCH_VELOCITY_FULL,
+        expected_values={"nr12": "f6"},
+    ),
+    Case(
+        "tuning_just_pu1_csharp",
+        h(0x90, 0x3D, 0x64),
+        {"trigger_pu1": 1},
+        min_sound_delta=3,
+        roms=("current",),
+        joypad_script=TUNING_JUST_JOYPAD_SCRIPT,
+        expected_values={"nr13": "2a", "nr14": "86"},
+    ),
+    Case(
+        "tuning_19edo_pu1_csharp",
+        h(0x90, 0x3D, 0x64),
+        {"trigger_pu1": 1},
+        min_sound_delta=3,
+        roms=("current",),
+        joypad_script=TUNING_19EDO_JOYPAD_SCRIPT,
+        expected_values={"nr13": "db", "nr14": "84"},
+    ),
+    Case(
+        "legato_pu1_suppresses_retrigger",
+        h(0x90, 0x3C, 0x64, 0x90, 0x3E, 0x65),
+        expected_exact={"trigger_pu1": 1},
+        min_sound_delta=5,
+        roms=("current",),
+        data_set_patch=PATCH_LEGATO_ON,
+    ),
+    Case(
+        "cc120_panic_all_sound_off",
+        h(0x90, 0x3C, 0x64, 0x91, 0x40, 0x64, 0x92, 0x43, 0x64, 0x93, 0x24, 0x64, 0xB0, 0x78, 0x00),
+        {"trigger_pu1": 1, "trigger_pu2": 1},
+        min_sound_delta=10,
+        roms=("current",),
+        expect_panic_silenced=True,
+    ),
+    Case(
+        "cc120_panic_global_unmapped_channel",
+        h(0x90, 0x3C, 0x64, 0xB9, 0x78, 0x00),
+        {"trigger_pu1": 1},
+        min_sound_delta=6,
+        roms=("current",),
+        data_set_patch={28: 0, 29: 1, 30: 2, 31: 3, 32: 4},
+        expect_panic_silenced=True,
     ),
     Case("save_empty", "", roms=("current",), save_fixture="empty", expect_save_valid=True),
     Case("save_ff", "", roms=("current",), save_fixture="ff", expect_save_valid=True),
@@ -468,6 +587,21 @@ def run_case(
                 hex(symbols["dataSet"]),
             ]
         )
+    if case.data_set_patch:
+        cmd.extend(
+            [
+                "--data-set-patch",
+                ",".join(f"{offset}={value}" for offset, value in sorted(case.data_set_patch.items())),
+                "--data-set-addr",
+                hex(symbols["dataSet"]),
+            ]
+        )
+    if (
+        any(key.startswith("data_set_") for key in case.expected_values)
+        and case.channel_map is None
+        and not case.data_set_patch
+    ):
+        cmd.extend(["--data-set-addr", hex(symbols["dataSet"])])
     if case.joypad_script is not None:
         cmd.extend(["--joypad-script", case.joypad_script])
     if case.save_fixture != "none":
@@ -561,8 +695,13 @@ def analyze(results: list[dict[str, str]], cases: tuple[Case, ...]) -> tuple[lis
                             )
                 if case.channel_map is not None and int_value(row, "channel_map_applied") != 1:
                     failures.append(f"{label}: channel map was not applied")
+                if case.data_set_patch and int_value(row, "data_set_patch_applied") != 1:
+                    failures.append(f"{label}: dataSet patch was not applied")
                 if case.joypad_script is not None and int_value(row, "joypad_script_ran") != 1:
                     failures.append(f"{label}: joypad script did not run")
+                for key, expected in case.expected_values.items():
+                    if row[key].lower() != expected.lower():
+                        failures.append(f"{label}: {key}={row[key]}, expected {expected}")
                 if case.expect_panic_silenced and int_value(row, "panic_silenced") != 1:
                     failures.append(f"{label}: panic_silenced={row['panic_silenced']}, expected 1")
                 if case.expect_save_valid:
@@ -658,6 +797,8 @@ def write_results(path: Path, results: list[dict[str, str]]) -> None:
         "save_fixture_applied",
         "channel_map",
         "channel_map_applied",
+        "data_set_patch",
+        "data_set_patch_applied",
         "joypad_script_ran",
         "start_pressed",
         "bytes_sent",
@@ -673,6 +814,8 @@ def write_results(path: Path, results: list[dict[str, str]]) -> None:
         "nr51",
         "nr52",
         "nr12",
+        "nr13",
+        "nr14",
         "nr22",
         "nr32",
         "nr42",

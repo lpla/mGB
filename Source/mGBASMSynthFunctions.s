@@ -389,7 +389,7 @@ _asmPlayNotePu1ClampDone$::
 
 	cp #0x00
 	jr	nz,_asmPlayNotePu1OnSet$
-	jr	_asmPlayNotePu1Off$
+	jp	_asmPlayNotePu1Off$
 
 _asmPlayNotePu1OnSet$::
 	ld	A, (#0xFF12)
@@ -412,6 +412,9 @@ _asmPlayNotePu1OnSetOn$::
 
 	jr	_asmPlayNotePu1On$
 _asmPlayNotePu1OnSetOff$::
+	ld	hl,#_dataSet + 38
+	bit	0,(hl)
+	jr	nz,_asmPlayNotePu1Legato$
 
 	ld	hl, #_pu1Vel
 	ld	A,(hl)
@@ -430,6 +433,11 @@ _asmPlayNotePu1OnSetOff$::
 pop bc
 ret
 
+_asmPlayNotePu1Legato$::
+	ld	A, #0x00
+	ld	hl, #_pu1Trig
+	ld	(hl),A
+	jr	_asmPlayNotePu1On$
 
 _asmPlayNotePu1On$::
 	ld	hl, #_noteStatus + 1
@@ -540,7 +548,7 @@ _asmPlayNotePu2ClampDone$::
 
 	cp #0x00
 	jr	nz,_asmPlayNotePu2OnSet$
-	jr	_asmPlayNotePu2Off$
+	jp	_asmPlayNotePu2Off$
 
 _asmPlayNotePu2OnSet$::
 	ld	A, (#0xFF17)
@@ -563,6 +571,10 @@ _asmPlayNotePu2OnSetOn$::
 
 	jr	_asmPlayNotePu2On$
 _asmPlayNotePu2OnSetOff$::
+	ld	hl,#_dataSet + 38
+	bit	0,(hl)
+	jr	nz,_asmPlayNotePu2Legato$
+
 	ld	hl, #_pu2Vel
 	ld	A,(hl)
 	cp  C
@@ -579,6 +591,12 @@ _asmPlayNotePu2OnSetOff$::
 	jr	_asmPlayNotePu2On$
 pop bc
 ret
+
+_asmPlayNotePu2Legato$::
+	ld	A, #0x00
+	ld	hl, #_pu2Trig
+	ld	(hl),A
+	jr	_asmPlayNotePu2On$
 
 _asmPlayNotePu2On$::
 	ld	hl, #_noteStatus + 3

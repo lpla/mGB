@@ -16,6 +16,10 @@
 #define MAX_INSTANCES 4
 #define MGB_MIDI_CHANNEL_BASE 28
 #define MGB_MIDI_CHANNEL_COUNT 5
+#define MGB_GLOBAL_SAVE_COUNT 16
+#define MGB_GLOBAL_SAVE_MAGIC 0x6D
+#define MGB_GLOBAL_SAVE_VERSION 0x01
+#define MAX_DATA_SET_PATCHES 32
 
 #define JOY_A      0x0001u
 #define JOY_B      0x0002u
@@ -49,6 +53,7 @@ typedef struct {
     int timed_out;
     int save_fixture_applied;
     int channel_map_applied;
+    int data_set_patch_applied;
     int joypad_script_ran;
 } HarnessInstance;
 
@@ -59,6 +64,7 @@ typedef struct HarnessConfig {
     const char *label;
     const char *bytes_text;
     const char *channel_map_text;
+    const char *data_set_patch_text;
     const char *joypad_script;
     const char *sram_fixture;
     const char *save_fixture;
@@ -67,6 +73,9 @@ typedef struct HarnessConfig {
     uint16_t data_set_addr;
     uint8_t channel_map[MGB_MIDI_CHANNEL_COUNT];
     unsigned channel_map_count;
+    uint8_t data_set_patch_offset[MAX_DATA_SET_PATCHES];
+    uint8_t data_set_patch_value[MAX_DATA_SET_PATCHES];
+    unsigned data_set_patch_count;
     unsigned instances;
     unsigned warmup_frames;
     unsigned settle_frames;
@@ -303,6 +312,43 @@ static int parse_channel_map(const char *text, uint8_t *channels, unsigned *coun
     return 0;
 }
 
+static int parse_data_set_patch(const char *text, uint8_t *offsets, uint8_t *values, unsigned *count)
+{
+    const char *p = text;
+    *count = 0;
+
+    while (*p) {
+        while (*p == ' ' || *p == ',' || *p == '\t' || *p == '\r' || *p == '\n') {
+            p++;
+        }
+        if (!*p) {
+            break;
+        }
+        if (*count == MAX_DATA_SET_PATCHES) {
+            fprintf(stderr, "too many dataSet patches; capacity is %u\n", MAX_DATA_SET_PATCHES);
+            return -1;
+        }
+
+        char *end = NULL;
+        unsigned long offset = strtoul(p, &end, 0);
+        if (end == p || offset > 0xFF || *end != '=') {
+            fprintf(stderr, "bad dataSet patch near: %s\n", p);
+            return -1;
+        }
+        p = end + 1;
+        unsigned long value = strtoul(p, &end, 0);
+        if (end == p || value > 0xFF) {
+            fprintf(stderr, "bad dataSet patch value near: %s\n", p);
+            return -1;
+        }
+        offsets[*count] = (uint8_t)offset;
+        values[*count] = (uint8_t)value;
+        (*count)++;
+        p = end;
+    }
+    return 0;
+}
+
 static uint64_t final_apu_hash(GB_gameboy_t *gb)
 {
     uint64_t hash = FNV64_OFFSET;
@@ -326,6 +372,54 @@ static uint8_t mGB_save_checksum(uint8_t *ram, size_t size)
         for (unsigned i = 0; i < 4; i++) checksum = (uint8_t)((checksum << 1) ^ ram[384 + x + i] ^ 0x88);
     }
     return checksum;
+}
+
+static const uint16_t mGB_global_save_offsets[MGB_GLOBAL_SAVE_COUNT] = {
+    7, 15, 23, 31, 39, 47, 55, 63,
+    71, 79, 87, 95, 103, 111, 119, 127,
+};
+
+static uint8_t mGB_global_checksum(uint8_t *ram, size_t size)
+{
+    uint8_t checksum = MGB_GLOBAL_SAVE_MAGIC ^ MGB_GLOBAL_SAVE_VERSION;
+    if (size < 514) {
+        return 0;
+    }
+    for (unsigned i = 3; i != 14; i++) {
+        checksum = (uint8_t)((checksum << 1) ^ ram[mGB_global_save_offsets[i]] ^ 0x33);
+    }
+    return checksum;
+}
+
+static void seed_global_config(
+    uint8_t *ram,
+    size_t size,
+    const uint8_t channels[MGB_MIDI_CHANNEL_COUNT],
+    uint8_t base,
+    uint8_t profile,
+    uint8_t mpe,
+    uint8_t velocity_curve,
+    uint8_t tuning,
+    uint8_t legato
+)
+{
+    if (size < 514) {
+        return;
+    }
+    ram[mGB_global_save_offsets[0]] = MGB_GLOBAL_SAVE_MAGIC;
+    ram[mGB_global_save_offsets[1]] = MGB_GLOBAL_SAVE_VERSION;
+    for (unsigned i = 0; i < MGB_MIDI_CHANNEL_COUNT; i++) {
+        ram[mGB_global_save_offsets[3 + i]] = channels[i];
+    }
+    ram[mGB_global_save_offsets[8]] = base;
+    ram[mGB_global_save_offsets[9]] = profile;
+    ram[mGB_global_save_offsets[10]] = mpe;
+    ram[mGB_global_save_offsets[11]] = velocity_curve;
+    ram[mGB_global_save_offsets[12]] = tuning;
+    ram[mGB_global_save_offsets[13]] = legato;
+    ram[mGB_global_save_offsets[14]] = 0;
+    ram[mGB_global_save_offsets[15]] = 0;
+    ram[mGB_global_save_offsets[2]] = mGB_global_checksum(ram, size);
 }
 
 static void seed_valid_sram(uint8_t *ram, size_t size, uint8_t checksum_override)
@@ -355,6 +449,10 @@ static void seed_valid_sram(uint8_t *ram, size_t size, uint8_t checksum_override
 
     ram[512] = 0xF7;
     ram[513] = checksum_override == 0xFE ? mGB_save_checksum(ram, size) : checksum_override;
+    {
+        const uint8_t channels[MGB_MIDI_CHANNEL_COUNT] = {0, 1, 2, 3, 4};
+        seed_global_config(ram, size, channels, 0, 0, 0, 0, 0, 0);
+    }
 }
 
 static void apply_sram_fixture(GB_gameboy_t *gb, const char *fixture)
@@ -378,6 +476,16 @@ static void apply_sram_fixture(GB_gameboy_t *gb, const char *fixture)
     }
     else if (strcmp(fixture, "valid") == 0) {
         seed_valid_sram(ram, size, 0xFE);
+    }
+    else if (strcmp(fixture, "valid_global_map") == 0) {
+        const uint8_t channels[MGB_MIDI_CHANNEL_COUNT] = {8, 9, 10, 11, 12};
+        seed_valid_sram(ram, size, 0xFE);
+        seed_global_config(ram, size, channels, 8, 0, 0, 0, 0, 0);
+    }
+    else if (strcmp(fixture, "valid_global_profile3") == 0) {
+        const uint8_t channels[MGB_MIDI_CHANNEL_COUNT] = {0, 1, 2, 3, 4};
+        seed_valid_sram(ram, size, 0xFE);
+        seed_global_config(ram, size, channels, 8, 3, 0, 0, 0, 0);
     }
     else if (strcmp(fixture, "valid_empty_checksum") == 0) {
         seed_valid_sram(ram, size, 0x00);
@@ -422,6 +530,24 @@ static void apply_channel_map(HarnessInstance *instance)
     instance->channel_map_applied = 1;
 }
 
+static void apply_data_set_patch(HarnessInstance *instance)
+{
+    const HarnessConfig *config = instance->config;
+    if (!config || !config->data_set_addr || !config->data_set_patch_count) {
+        return;
+    }
+
+    uint8_t *data_set = wram_ptr_for_addr(instance->gb, config->data_set_addr, 64);
+    if (!data_set) {
+        return;
+    }
+
+    for (unsigned i = 0; i < config->data_set_patch_count; i++) {
+        data_set[config->data_set_patch_offset[i]] = config->data_set_patch_value[i];
+    }
+    instance->data_set_patch_applied = 1;
+}
+
 static void seed_save_fixture(uint8_t *save_data, const char *fixture)
 {
     if (strcmp(fixture, "empty") == 0) {
@@ -437,6 +563,16 @@ static void seed_save_fixture(uint8_t *save_data, const char *fixture)
     }
     else if (strcmp(fixture, "valid") == 0) {
         seed_valid_sram(save_data, 514, 0xFE);
+    }
+    else if (strcmp(fixture, "valid_global_map") == 0) {
+        const uint8_t channels[MGB_MIDI_CHANNEL_COUNT] = {8, 9, 10, 11, 12};
+        seed_valid_sram(save_data, 514, 0xFE);
+        seed_global_config(save_data, 514, channels, 8, 0, 0, 0, 0, 0);
+    }
+    else if (strcmp(fixture, "valid_global_profile3") == 0) {
+        const uint8_t channels[MGB_MIDI_CHANNEL_COUNT] = {0, 1, 2, 3, 4};
+        seed_valid_sram(save_data, 514, 0xFE);
+        seed_global_config(save_data, 514, channels, 8, 3, 0, 0, 0, 0);
     }
     else if (strcmp(fixture, "valid_empty_checksum") == 0) {
         seed_valid_sram(save_data, 514, 0x00);
@@ -663,6 +799,7 @@ static int parse_args(int argc, char **argv, HarnessConfig *config)
         .label = "scenario",
         .bytes_text = "",
         .channel_map_text = "",
+        .data_set_patch_text = "",
         .joypad_script = "",
         .sram_fixture = "none",
         .save_fixture = "none",
@@ -670,6 +807,7 @@ static int parse_args(int argc, char **argv, HarnessConfig *config)
         .check_memory_addr = 0,
         .data_set_addr = 0,
         .channel_map_count = 0,
+        .data_set_patch_count = 0,
         .instances = 1,
         .warmup_frames = 600,
         .settle_frames = 120,
@@ -694,6 +832,7 @@ static int parse_args(int argc, char **argv, HarnessConfig *config)
         else if (strcmp(arg, "--label") == 0) target = &config->label;
         else if (strcmp(arg, "--bytes") == 0) target = &config->bytes_text;
         else if (strcmp(arg, "--channel-map") == 0) target = &config->channel_map_text;
+        else if (strcmp(arg, "--data-set-patch") == 0) target = &config->data_set_patch_text;
         else if (strcmp(arg, "--joypad-script") == 0) target = &config->joypad_script;
         else if (strcmp(arg, "--sram-fixture") == 0) target = &config->sram_fixture;
         else if (strcmp(arg, "--save-fixture") == 0) target = &config->save_fixture;
@@ -775,6 +914,21 @@ static int parse_args(int argc, char **argv, HarnessConfig *config)
         }
     }
 
+    if (config->data_set_patch_text && config->data_set_patch_text[0]) {
+        if (parse_data_set_patch(
+            config->data_set_patch_text,
+            config->data_set_patch_offset,
+            config->data_set_patch_value,
+            &config->data_set_patch_count
+        )) {
+            return -1;
+        }
+        if (!config->data_set_addr) {
+            fprintf(stderr, "--data-set-patch requires --data-set-addr\n");
+            return -1;
+        }
+    }
+
     return 0;
 }
 
@@ -831,6 +985,18 @@ static void print_instance_details(HarnessInstance *instances, unsigned count)
     }
 }
 
+static uint8_t data_set_byte(HarnessInstance *instance, unsigned offset)
+{
+    if (!instance->config || !instance->config->data_set_addr) {
+        return 0;
+    }
+    uint8_t *data_set = wram_ptr_for_addr(instance->gb, instance->config->data_set_addr, 64);
+    if (!data_set) {
+        return 0;
+    }
+    return data_set[offset];
+}
+
 int main(int argc, char **argv)
 {
     HarnessConfig config;
@@ -880,6 +1046,7 @@ int main(int argc, char **argv)
     run_all_ticks(instances, config.instances, TICKS_PER_FRAME * config.warmup_frames);
     for (unsigned i = 0; i < config.instances; i++) {
         apply_channel_map(&instances[i]);
+        apply_data_set_patch(&instances[i]);
     }
     if (run_joypad_script(instances, config.instances, &config)) {
         return 2;
@@ -911,6 +1078,8 @@ int main(int argc, char **argv)
     HarnessState *state = &first->state;
     uint64_t apu_hash = final_apu_hash(gb);
     uint8_t nr12 = gb->io_registers[GB_IO_NR12];
+    uint8_t nr13 = gb->io_registers[GB_IO_NR13];
+    uint8_t nr14 = gb->io_registers[GB_IO_NR14];
     uint8_t nr22 = gb->io_registers[GB_IO_NR22];
     uint8_t nr32 = gb->io_registers[GB_IO_NR32];
     uint8_t nr42 = gb->io_registers[GB_IO_NR42];
@@ -939,6 +1108,8 @@ int main(int argc, char **argv)
     printf("save_fixture_applied=%u\n", first->save_fixture_applied ? 1 : 0);
     printf("channel_map=%s\n", config.channel_map_text);
     printf("channel_map_applied=%u\n", first->channel_map_applied ? 1 : 0);
+    printf("data_set_patch=%s\n", config.data_set_patch_text);
+    printf("data_set_patch_applied=%u\n", first->data_set_patch_applied ? 1 : 0);
     printf("joypad_script_ran=%u\n", first->joypad_script_ran ? 1 : 0);
     printf("start_pressed=%u\n", config.press_start ? 1 : 0);
     printf("ok=%u\n", (timed_out == 0 && all_boot_finished && match) ? 1 : 0);
@@ -967,6 +1138,8 @@ int main(int argc, char **argv)
     printf("nr51=%02x\n", nr51);
     printf("nr52=%02x\n", nr52);
     printf("nr12=%02x\n", nr12);
+    printf("nr13=%02x\n", nr13);
+    printf("nr14=%02x\n", nr14);
     printf("nr22=%02x\n", nr22);
     printf("nr32=%02x\n", nr32);
     printf("nr42=%02x\n", nr42);
@@ -986,6 +1159,11 @@ int main(int argc, char **argv)
     printf("save_checksum=%02x\n", save_byte(first, 513));
     printf("save_expected_checksum=%02x\n", mGB_save_checksum(save_data_ptr(first), save_data_ptr(first) ? 514 : 0));
     printf("save_valid=%u\n", save_valid(first));
+    if (config.data_set_addr) {
+        for (unsigned i = 0; i <= 38; i++) {
+            printf("data_set_%u=%u\n", i, data_set_byte(first, i));
+        }
+    }
     print_instance_details(instances, config.instances);
 
     for (unsigned i = 0; i < config.instances; i++) {

@@ -41,12 +41,16 @@ push bc
 		jp z,_asmEventMidiPB$
 	cp	#0x0B
 		jp z,_asmEventMidiCC$
+	cp	#0x0A
+		jp z,_asmEventMidiAT$
 	cp	#0x08
-		jr z,_asmEventMidiNoteOff$
+		jp z,_asmEventMidiNoteOff$
 	cp	#0x09
-		jr z,_asmEventMidiNote$
+		jp z,_asmEventMidiNote$
 	cp	#0x0C
 		jp z,_asmEventMidiPC$
+	cp	#0x0D
+		jp z,_asmEventMidiCP$
 pop	bc
 ret
 
@@ -92,6 +96,8 @@ _asmUpdateMidiBufferAddress$::
 	AND	#0xF0
 	cp	#0xC0
 		jr z,_asmUpdateMidiBufferProgramChange$
+	cp	#0xD0
+		jr z,_asmUpdateMidiBufferChannelPressure$
 	ld	A,B
 	ld	hl,#_capturedAddress
 	ld (hl),#0x01
@@ -116,6 +122,19 @@ _asmUpdateMidiBufferProgramChange$::
 	ld	B,A
 	jp _asmEventMidiPC$
 
+_asmUpdateMidiBufferChannelPressure$::
+	ld	A,B
+	ld	hl,#_velocity
+	ld (hl),A
+	ld	hl,#_capturedAddress
+	ld (hl),#0x00
+	ld hl,#_systemIdle
+	ld (hl),#0x00
+	ld	hl,#_statusByte
+	ld	A,(hl)
+	ld	B,A
+	jp _asmEventMidiCP$
+
 _asmEventMidiNoteOff$::
 	ld	hl,#_velocity
 	ld	(hl),#0x00
@@ -124,6 +143,10 @@ pop	bc
 ret
 
 _asmEventMidiNote$::
+	ld	hl,#_velocity
+	ld	A,(hl)
+	or	A
+	call nz,_asmApplyVelocityCurve$
 	ld	A,B
 	AND	#0x0F
 	ld	C,A
@@ -150,10 +173,63 @@ _asmEventMidiNote$::
 pop	bc
 ret
 
+_asmApplyVelocityCurve$::
+	ld	hl,#_dataSet + 36
+	ld	A,(hl)
+	or	A
+	ret	z
+	cp	#0x01
+	jr	z,_asmApplyVelocityCurveSoft$
+	cp	#0x02
+	jr	z,_asmApplyVelocityCurveHard$
+	cp	#0x03
+	jr	z,_asmApplyVelocityCurveFull$
+	ret
+_asmApplyVelocityCurveSoft$::
+	ld	hl,#_velocity
+	ld	A,(hl)
+	ld	C,A
+	srl	A
+	add	C
+	jr	nc,_asmApplyVelocityCurveSoftClamp$
+	ld	A,#0x7F
+	jr	_asmApplyVelocityCurveStore$
+_asmApplyVelocityCurveSoftClamp$::
+	cp	#0x80
+	jr	c,_asmApplyVelocityCurveStore$
+	ld	A,#0x7F
+	jr	_asmApplyVelocityCurveStore$
+_asmApplyVelocityCurveHard$::
+	ld	hl,#_velocity
+	ld	A,(hl)
+	ld	C,A
+	ld	A,#0x7F
+	sub	C
+	srl	A
+	srl	A
+	ld	D,A
+	ld	A,C
+	sub	D
+	jr	nc,_asmApplyVelocityCurveStore$
+	ld	A,#0x01
+	jr	_asmApplyVelocityCurveStore$
+_asmApplyVelocityCurveFull$::
+	ld	A,#0x7F
+_asmApplyVelocityCurveStore$::
+	ld	hl,#_velocity
+	ld	(hl),A
+	ret
+
 _asmEventMidiCC$::
 	ld	A,B
 	AND	#0x0F
 	ld	C,A
+	ld	hl,#_note
+	ld	A,(hl)
+	cp	#0x78
+		jp z,_asmMidiPanic$;
+	cp	#0x79
+		jp z,_asmMidiResetControllers$;
 	ld	hl,#_dataSet + 28
 	ld	A,C
 	cp	(hl)
@@ -174,6 +250,40 @@ _asmEventMidiCC$::
 	ld	A,C
 	cp	(hl)
 		jp z,_asmEventMidiCCPoly$;
+pop	bc
+ret
+
+_asmEventMidiAT$::
+	jr	_asmEventMidiCP$
+
+_asmEventMidiCP$::
+	ld	hl,#_dataSet + 35
+	bit	0,(hl)
+	jr	z,_asmEventMidiCPReturn$
+	ld	A,B
+	AND	#0x0F
+	ld	C,A
+	ld	hl,#_dataSet + 28
+	ld	A,C
+	cp	(hl)
+		jp z,_asmPu1Pressure$;
+	ld	hl,#_dataSet + 29
+	ld	A,C
+	cp	(hl)
+		jp z,_asmPu2Pressure$;
+	ld	hl,#_dataSet + 30
+	ld	A,C
+	cp	(hl)
+		jp z,_asmWavPressure$;
+	ld	hl,#_dataSet + 31
+	ld	A,C
+	cp	(hl)
+		jp z,_asmNoiPressure$;
+	ld	hl,#_dataSet + 32
+	ld	A,C
+	cp	(hl)
+		jp z,_asmPolyPressure$;
+_asmEventMidiCPReturn$::
 pop	bc
 ret
 
@@ -332,6 +442,146 @@ _asmPolyMidiPb$::
 pop	bc
 ret
 
+_asmMidiPanic$::
+	call	_panicSynths
+pop	bc
+ret
+
+_asmMidiResetControllers$::
+	call	_resetPerformanceControllers
+pop	bc
+ret
+
+_asmPressureToEnvelope$::
+	ld	hl,#_velocity
+	ld	A,(hl)
+	RLCA
+	AND	#0xF0
+	ret
+
+_asmPu1Pressure$::
+	ld	hl,#_noteStatus + 0
+	bit	0,(hl)
+	jr	z,_asmPu1PressureReturn$
+	call	_asmPressureToEnvelope$
+	ld	hl,#_pu1Env
+	OR	(hl)
+	ld	(#0xFF12),A
+_asmPu1PressureReturn$::
+pop	bc
+ret
+
+_asmPu2Pressure$::
+	ld	hl,#_noteStatus + 2
+	bit	0,(hl)
+	jr	z,_asmPu2PressureReturn$
+	call	_asmPressureToEnvelope$
+	ld	hl,#_pu2Env
+	OR	(hl)
+	ld	(#0xFF17),A
+_asmPu2PressureReturn$::
+pop	bc
+ret
+
+_asmWavPressureValue$::
+	ld	hl,#_velocity
+	ld	A,(hl)
+	cp	#0x60
+	jr	nc,_asmWavPressureFull$
+	cp	#0x40
+	jr	nc,_asmWavPressureHalf$
+	cp	#0x20
+	jr	nc,_asmWavPressureQuarter$
+	ld	A,#0x00
+	ret
+_asmWavPressureFull$::
+	ld	A,#0x20
+	ret
+_asmWavPressureHalf$::
+	ld	A,#0x40
+	ret
+_asmWavPressureQuarter$::
+	ld	A,#0x60
+	ret
+
+_asmWavPressure$::
+	ld	hl,#_noteStatus + 4
+	bit	0,(hl)
+	jr	z,_asmWavPressureReturn$
+	call	_asmWavPressureValue$
+	ld	(#0xFF1C),A
+_asmWavPressureReturn$::
+pop	bc
+ret
+
+_asmNoiPressure$::
+	ld	hl,#_noteStatus + 6
+	bit	0,(hl)
+	jr	z,_asmNoiPressureReturn$
+	call	_asmPressureToEnvelope$
+	ld	hl,#_noiEnv
+	OR	(hl)
+	ld	(#0xFF21),A
+_asmNoiPressureReturn$::
+pop	bc
+ret
+
+_asmPolyPressure$::
+	ld	hl,#_noteStatus + 0
+	bit	0,(hl)
+	jr	z,_asmPolyPressurePu2$
+	call	_asmPressureToEnvelope$
+	ld	hl,#_pu1Env
+	OR	(hl)
+	ld	(#0xFF12),A
+_asmPolyPressurePu2$::
+	ld	hl,#_noteStatus + 2
+	bit	0,(hl)
+	jr	z,_asmPolyPressureWav$
+	call	_asmPressureToEnvelope$
+	ld	hl,#_pu2Env
+	OR	(hl)
+	ld	(#0xFF17),A
+_asmPolyPressureWav$::
+	ld	hl,#_noteStatus + 4
+	bit	0,(hl)
+	jr	z,_asmPolyPressureReturn$
+	call	_asmWavPressureValue$
+	ld	(#0xFF1C),A
+_asmPolyPressureReturn$::
+pop	bc
+ret
+
+_asmPu1MpeTimbre$::
+	ld	hl,#_dataSet + 35
+	bit	0,(hl)
+	jp	z,_popReturn$
+	jp	_asmPu1Wav$
+
+_asmPu2MpeTimbre$::
+	ld	hl,#_dataSet + 35
+	bit	0,(hl)
+	jp	z,_popReturn$
+	jp	_asmPu2Wav$
+
+_asmWavMpeTimbre$::
+	ld	hl,#_dataSet + 35
+	bit	0,(hl)
+	jp	z,_popReturn$
+	jp	_asmWavWav$
+
+_asmNoiMpeTimbre$::
+	ld	hl,#_dataSet + 35
+	bit	0,(hl)
+	jp	z,_popReturn$
+	jp	_asmNoiEnv$
+
+_asmPolyMpeTimbre$::
+	ld	hl,#_dataSet + 35
+	bit	0,(hl)
+	jp	z,_popReturn$
+	jp	_asmPolyWav$
+
 
 
 ;----------------------------------------------------------------------------------------------------
@@ -358,6 +608,12 @@ _asmEventMidiCCPu1$::
 		jp z,_asmPu1VR$;
 	cp	#0x40
 		jp z,_asmPu1Sus$;
+	cp	#0x4A
+		jp z,_asmPu1MpeTimbre$;
+	cp	#0x78
+		jp z,_asmMidiPanic$;
+	cp	#0x79
+		jp z,_asmMidiResetControllers$;
 	cp	#0x7B
 		jp z,_asmPu1Nf$;
 pop	bc
@@ -604,6 +860,12 @@ _asmEventMidiCCPu2$::
 		jp z,_asmPu2VR$;
 	cp	#0x40
 		jp z,_asmPu2Sus$;
+	cp	#0x4A
+		jp z,_asmPu2MpeTimbre$;
+	cp	#0x78
+		jp z,_asmMidiPanic$;
+	cp	#0x79
+		jp z,_asmMidiResetControllers$;
 	cp	#0x7B
 		jp z,_asmPu2Nf$;
 pop	bc
@@ -833,6 +1095,12 @@ _asmEventMidiCCWav$::
 		jp z,_asmWavVR$;
 	cp	#0x40
 		jp z,_asmWavSus$;
+	cp	#0x4A
+		jp z,_asmWavMpeTimbre$;
+	cp	#0x78
+		jp z,_asmMidiPanic$;
+	cp	#0x79
+		jp z,_asmMidiResetControllers$;
 	cp	#0x7B
 		jp z,_asmWavNf$;
 pop	bc
@@ -1097,6 +1365,12 @@ _asmEventMidiCCNoi$::
 		jp z,_asmNoiVR$;
 	cp	#0x40
 		jp z,_asmNoiSus$;
+	cp	#0x4A
+		jp z,_asmNoiMpeTimbre$;
+	cp	#0x78
+		jp z,_asmMidiPanic$;
+	cp	#0x79
+		jp z,_asmMidiResetControllers$;
 	cp	#0x7B
 		jp z,_asmNoiNf$;
 pop	bc
@@ -1284,6 +1558,12 @@ _asmEventMidiCCPoly$::
 		jr z,_asmPolyPan$;
 	cp	#0x40
 		jr z,_asmPolySus$;
+	cp	#0x4A
+		jp z,_asmPolyMpeTimbre$;
+	cp	#0x78
+		jp z,_asmMidiPanic$;
+	cp	#0x79
+		jp z,_asmMidiResetControllers$;
 	cp	#0x7B
 		jr z,_asmPolyNf$;
 pop	bc
