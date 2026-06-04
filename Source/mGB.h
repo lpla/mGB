@@ -493,7 +493,7 @@ const unsigned char versionnumber[10] =
 	32,81,
 	2,81,
 	5,81,
-	1,
+	2,
 	0,0,0
 };
 

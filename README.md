@@ -18,14 +18,15 @@ ROMs:
  * SameBoy MIDI/link-cable regression coverage for CGB, DMG, and 4-way Synccross-style fan-out.
 
 Download the latest `.gb` file from
-[the v1.4.0 GitHub release](https://github.com/lpla/mGB/releases/tag/v1.4.0),
-or use `Releases/mGB_1_4_0.gb` from this checkout.
+[the v1.4.1 GitHub release](https://github.com/lpla/mGB/releases/tag/v1.4.1),
+or use `Releases/mGB_1_4_1.gb` from this checkout.
 
 ## Documentation
 
  * [Musician Guide](docs/MUSICIAN_GUIDE.md): flashing, wiring, MIDI channels, multi-Game-Boy polyphony, live controls, microtuning, and troubleshooting.
  * [Developer Guide](docs/DEVELOPER_GUIDE.md): build requirements, GBDK-2020 migration notes, memory layout, SameBoy regression testing, and release process.
  * [Feedback and Roadmap](docs/FEEDBACK_AND_ROADMAP.md): old community feedback, how this fork addresses it, and future ideas that fit the Game Boy limits.
+ * [Fork Audit](docs/FORK_AUDIT.md): comparison against `trash80/mGB`, `vifino/mGB`, and other notable forks.
 
 ## Building
 
@@ -71,6 +72,9 @@ those paths with `SAMEBOY_SRC=/path/to/SameBoy` and
 `SAMEBOY_BOOT_DIR=/path/to/bootroms`.
 
 ## Change Log
+ * Jun 4 2026 1.4.1
+   * Added the remaining `trash80/mGB` upstream archive commit with historical 1.3.x source ZIPs.
+   * Fixed frequency and noise-frequency table lookups when the tables cross a 256-byte memory page, based on the `dalton-tulou`/`tonytwostep` fork fix for trash80/mGB issue 3.
  * Jun 4 2026 1.4.0
    * Migrated the build from gbdk-n to GBDK-2020.
    * Removed the obsolete `gbdk-n` submodule; GBDK-2020 is now an external toolchain dependency selected with `GBDK_HOME`.

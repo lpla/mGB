@@ -60,11 +60,12 @@ _asmUpdatePu1PbWheelReset$::
 	ld	A,(hl)
 	ld	B,A
 
-	ld	A,#<_freq
-    add	A,B
-    add	A,B
+	ld	A,B
+	add	A,A
+	add	A,#<_freq
 	ld	E,A
-    ld	A,#>_freq
+	adc	#>_freq
+	sub	E
 	ld	D,A
 
 	ld  A,(DE)
@@ -147,11 +148,12 @@ _asmUpdatePu2PbWheelReset$::
 	ld	B,A
 
 
-	ld	A,#<_freq
-    add	A,B
-    add	A,B
+	ld	A,B
+	add	A,A
+	add	A,#<_freq
 	ld	E,A
-    ld	A,#>_freq
+	adc	#>_freq
+	sub	E
 	ld	D,A
 
 	ld  A,(DE)
@@ -256,11 +258,12 @@ _asmUpdateWavPbWheelReset$::
 	ld	A,(hl)
 	ld	B,A
 
-	ld	A,#<_freq
-    add	A,B
-    add	A,B
+	ld	A,B
+	add	A,A
+	add	A,#<_freq
 	ld	E,A
-    ld	A,#>_freq
+	adc	#>_freq
+	sub	E
 	ld	D,A
 
 	ld  A,(DE)
@@ -340,9 +343,10 @@ _asmUpdateNoiPbWheelReset$::
 	ld	B,A
 
 	ld	A,#<_noiFreq
-    add	A,B
+	add	A,B
 	ld	E,A
-    ld	A,#>_noiFreq
+	adc	#>_noiFreq
+	sub	E
 	ld	D,A
 
 	ld  A,(DE)
@@ -443,11 +447,12 @@ _asmPlayNotePu1On$::
 	ld	hl, #_noteStatus + 1
 	ld	(hl),B
 
-	ld	A,#<_freq
-    add	A,B
-    add	A,B
+	ld	A,B
+	add	A,A
+	add	A,#<_freq
 	ld	E,A
-    ld	A,#>_freq
+	adc	#>_freq
+	sub	E
 	ld	D,A
 
 	ld  A,(DE)
@@ -602,11 +607,12 @@ _asmPlayNotePu2On$::
 	ld	hl, #_noteStatus + 3
 	ld	(hl),B
 
-	ld	A,#<_freq
-    add	A,B
-    add	A,B
+	ld	A,B
+	add	A,A
+	add	A,#<_freq
 	ld	E,A
-    ld	A,#>_freq
+	adc	#>_freq
+	sub	E
 	ld	D,A
 
 	ld  A,(DE)
@@ -734,11 +740,12 @@ pop bc
 ret
 
 _asmPlayNoteWavSet$::
-	ld	A,#<_freq
-    add	A,B
-    add	A,B
+	ld	A,B
+	add	A,A
+	add	A,#<_freq
 	ld	E,A
-    ld	A,#>_freq
+	adc	#>_freq
+	sub	E
 	ld	D,A
 
 	ld  A,(DE)
@@ -873,9 +880,10 @@ _asmPlayNoteNoiOn$::
 	ld	(#0xFF21),A
 
 	ld	A,#<_noiFreq
-    add	A,B
+	add	A,B
 	ld	E,A
-    ld	A,#>_noiFreq
+	adc	#>_noiFreq
+	sub	E
 	ld	D,A
 
 	ld  A,(DE)

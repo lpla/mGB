@@ -107,7 +107,7 @@ Display and button behavior live mainly in:
 
 1. Build and run the local checks.
 2. Run SameBoy MIDI regression.
-3. Copy the generated ROM to `Releases/mGB_1_4_0.gb`.
+3. Copy the generated ROM to a versioned file under `Releases/`.
 4. Commit source, docs, tests, and the release ROM.
 5. Tag the commit.
 6. Create a GitHub release with the `.gb` file and checksum.
@@ -117,6 +117,6 @@ Example:
 ```sh
 make -C Source test GBDK_HOME="$HOME/.cache/gbdk-2020/4.5.0/gbdk"
 make -C Source sameboy-midi-regression GBDK_HOME="$HOME/.cache/gbdk-2020/4.5.0/gbdk"
-cp Source/mgb.gb Releases/mGB_1_4_0.gb
-shasum -a 256 Releases/mGB_1_4_0.gb
+cp Source/mgb.gb Releases/mGB_1_4_1.gb
+shasum -a 256 Releases/mGB_1_4_1.gb
 ```

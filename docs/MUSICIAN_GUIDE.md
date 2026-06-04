@@ -14,7 +14,7 @@ mGB does not make sound by itself at the menu. It responds when MIDI note data a
 
 ## First Sound
 
-1. Flash or load `Releases/mGB_1_4_0.gb`.
+1. Flash or load `Releases/mGB_1_4_1.gb`.
 2. Start mGB on the Game Boy.
 3. Put your link adapter into full mGB/MIDI mode. For Arduinoboy, this is Mode 5.
 4. Send a note on MIDI channel 1.
