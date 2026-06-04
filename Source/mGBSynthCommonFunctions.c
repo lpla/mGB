@@ -77,10 +77,10 @@ void applyChannelProfile(void)
 			dataSet[DATASET_BASE_CHANNEL] = 0U;
 			break;
 		case 2U:
-			dataSet[DATASET_BASE_CHANNEL] = 4U;
+			dataSet[DATASET_BASE_CHANNEL] = 5U;
 			break;
 		case 3U:
-			dataSet[DATASET_BASE_CHANNEL] = 8U;
+			dataSet[DATASET_BASE_CHANNEL] = 10U;
 			break;
 		default:
 			dataSet[DATASET_CHANNEL_PROFILE] = 0U;

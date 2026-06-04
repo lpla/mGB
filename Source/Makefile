@@ -10,6 +10,15 @@ SOURCES := \
 	mGBASMSynthFunctions.s \
 	mGBASMMidiFunctions.s
 
+INCLUDES := \
+	mGB.h \
+	mGBDisplayFunctions.c \
+	mGBMemoryFunctions.c \
+	mGBSerialFunctions.c \
+	mGBSynthCommonFunctions.c \
+	mGBSynthPitchFunctions.c \
+	mGBUserFunctions.c
+
 CFLAGS := -I.
 LCCFLAGS := -Wa-l -Wl-m -Wl-j
 ROMFLAGS := -Wm-ynMGB -Wm-yc -Wm-yt0x02 -Wm-yo4 -Wm-ya4 -Wm-yl0x00
@@ -19,7 +28,7 @@ UPSTREAM_BASELINE ?= upstream/master:mGB.gb
 
 build: $(ROM)
 
-$(ROM): $(SOURCES)
+$(ROM): $(SOURCES) $(INCLUDES)
 	@test -x "$(LCC)" || (echo "Missing GBDK-2020 lcc at $(LCC). Set GBDK_HOME=/path/to/gbdk."; exit 1)
 	GBDKDIR="$(GBDKDIR)" "$(LCC)" $(CFLAGS) $(LCCFLAGS) $(ROMFLAGS) -o $@ $(SOURCES)
 	python3 ../tools/normalize_rom_header.py $@

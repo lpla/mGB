@@ -485,7 +485,7 @@ static void apply_sram_fixture(GB_gameboy_t *gb, const char *fixture)
     else if (strcmp(fixture, "valid_global_profile3") == 0) {
         const uint8_t channels[MGB_MIDI_CHANNEL_COUNT] = {0, 1, 2, 3, 4};
         seed_valid_sram(ram, size, 0xFE);
-        seed_global_config(ram, size, channels, 8, 3, 0, 0, 0, 0);
+        seed_global_config(ram, size, channels, 10, 3, 0, 0, 0, 0);
     }
     else if (strcmp(fixture, "valid_empty_checksum") == 0) {
         seed_valid_sram(ram, size, 0x00);
@@ -588,7 +588,7 @@ static void seed_save_fixture(uint8_t *save_data, const char *fixture)
     else if (strcmp(fixture, "valid_global_profile3") == 0) {
         const uint8_t channels[MGB_MIDI_CHANNEL_COUNT] = {0, 1, 2, 3, 4};
         seed_valid_sram(save_data, 514, 0xFE);
-        seed_global_config(save_data, 514, channels, 8, 3, 0, 0, 0, 0);
+        seed_global_config(save_data, 514, channels, 10, 3, 0, 0, 0, 0);
     }
     else if (strcmp(fixture, "valid_empty_checksum") == 0) {
         seed_valid_sram(save_data, 514, 0x00);

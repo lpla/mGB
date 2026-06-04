@@ -492,8 +492,8 @@ const unsigned char versionnumber[10] =
 {
 	32,81,
 	2,81,
-	4,81,
-	4,
+	5,81,
+	1,
 	0,0,0
 };
 

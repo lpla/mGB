@@ -5,6 +5,27 @@ mGB is a Gameboy cartridge program (You need a Flash Cart and Transfer hardware)
 
 ![ScreenShot](http://trash80.net/arduinoboy/mGB1_2_0.png)
 
+## Latest Fork Release
+
+This fork modernizes mGB for [GBDK-2020](https://github.com/gbdk-2020/gbdk-2020)
+and adds live-performance controls that no longer require rebuilding separate
+ROMs:
+
+ * Runtime MIDI channel mapping for PU1, PU2, WAV, NOISE, and POLY.
+ * GB1/GB2/GB3 channel profiles matching the historical 1-5, 6-10, and 11-15 extended ROM sets.
+ * Cartridge SRAM persistence for presets and global performance setup.
+ * Velocity curves, MPE-lite timbre/pressure controls, pulse-channel legato, global MIDI panic/reset, and microtuning.
+ * SameBoy MIDI/link-cable regression coverage for CGB, DMG, and 4-way Synccross-style fan-out.
+
+Download the latest `.gb` file from the GitHub release page, or use
+`Releases/mGB_1_4_0.gb` after building this checkout.
+
+## Documentation
+
+ * [Musician Guide](docs/MUSICIAN_GUIDE.md): flashing, wiring, MIDI channels, multi-Game-Boy polyphony, live controls, microtuning, and troubleshooting.
+ * [Developer Guide](docs/DEVELOPER_GUIDE.md): build requirements, GBDK-2020 migration notes, memory layout, SameBoy regression testing, and release process.
+ * [Feedback and Roadmap](docs/FEEDBACK_AND_ROADMAP.md): old community feedback, how this fork addresses it, and future ideas that fit the Game Boy limits.
+
 ## Building
 
 This fork builds with [GBDK-2020](https://github.com/gbdk-2020/gbdk-2020).
@@ -119,7 +140,7 @@ The global setup screen adds runtime controls that do not require rebuilding the
 ROM:
 
  * BASE: Sets the first MIDI channel for PU1/PU2/WAV/NOISE/POLY. Valid bases are 1 to 13.
- * PROFILE: Manual, GB1, GB2, or GB3. GB1 maps channels 1-5, GB2 maps 5-9, and GB3 maps 9-13.
+ * PROFILE: Manual, GB1, GB2, or GB3. GB1 maps channels 1-5, GB2 maps 6-10, and GB3 maps 11-15.
  * MPE MODE: Enables channel pressure/poly aftertouch for volume and CC74 for timbre.
  * VELOCITY: Linear, soft, hard, or full velocity response.
  * TUNING: Equal temperament, just intonation, Pythagorean, 19-EDO, or 24-EDO.
@@ -183,6 +204,8 @@ Note: the name and number at the bottom left of the screen indicates the midi CC
 
 Additional live controls:
 
+ * cc11: Vibrato depth.
+ * cc12: Vibrato rate.
  * cc74: Timbre in MPE mode only. Maps to pulse width, WAV shape, or NOISE envelope.
  * cc120: Global panic/all sound off, regardless of the incoming MIDI channel.
  * cc121: Global reset controllers, regardless of the incoming MIDI channel.
