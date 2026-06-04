@@ -129,17 +129,18 @@ void getPad(void)
 				toggleConfigScreen();
 				return;
 			}
-			if((i & J_A) && !joyState[0]) {
-				joyState[0] = 1;
-				if (i & J_SELECT) {
-					toggleScreen();
-				} else {
-					setDataValue();
+			if(i & J_A) {
+				if(!joyState[0]) {
+					joyState[0] = 1;
+					if (i & J_SELECT) {
+						toggleScreen();
+					} else {
+						setDataValue();
+					}
 				}
 				return;
 			} else if (joyState[0]) {
 				joyState[0] = 0;
-				setDataValue();
 				return;
 			}
 			if((i & J_B) && !joyState[1]) {

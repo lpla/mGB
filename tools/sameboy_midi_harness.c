@@ -508,6 +508,22 @@ static uint8_t *wram_ptr_for_addr(GB_gameboy_t *gb, uint16_t addr, size_t length
     return ram + (addr - 0xC000);
 }
 
+static uint8_t *save_ptr_for_addr(GB_gameboy_t *gb, uint16_t addr, size_t length)
+{
+    if (addr >= 0xC000) {
+        return wram_ptr_for_addr(gb, addr, length);
+    }
+    if (addr >= 0xA000 && addr < 0xC000) {
+        size_t size = 0;
+        uint8_t *ram = GB_get_direct_access(gb, GB_DIRECT_ACCESS_CART_RAM, &size, NULL);
+        if (!ram || (size_t)(addr - 0xA000) + length > size) {
+            return NULL;
+        }
+        return ram + (addr - 0xA000);
+    }
+    return NULL;
+}
+
 static void apply_channel_map(HarnessInstance *instance)
 {
     const HarnessConfig *config = instance->config;
@@ -593,7 +609,7 @@ static void apply_save_fixture(HarnessInstance *instance)
         return;
     }
 
-    uint8_t *save_data = wram_ptr_for_addr(instance->gb, config->save_data_addr, 514);
+    uint8_t *save_data = save_ptr_for_addr(instance->gb, config->save_data_addr, 514);
     if (!save_data) {
         return;
     }
@@ -628,7 +644,7 @@ static uint8_t *save_data_ptr(HarnessInstance *instance)
     if (!instance->config || !instance->config->save_data_addr) {
         return NULL;
     }
-    return wram_ptr_for_addr(instance->gb, instance->config->save_data_addr, 514);
+    return save_ptr_for_addr(instance->gb, instance->config->save_data_addr, 514);
 }
 
 static uint64_t save_hash(HarnessInstance *instance)
