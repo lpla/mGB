@@ -10,6 +10,10 @@ This guide is for building, testing, and modifying this fork.
  * SameBoy boot ROMs, usually from `/Applications/SameBoy.app/Contents/Resources` on macOS.
  * A C compiler for the SameBoy harness.
 
+The old `gbdk-n` submodule has been removed. GBDK-2020 is intentionally not
+vendored as a submodule; install it externally and pass its path with
+`GBDK_HOME`.
+
 ## Build
 
 ```sh

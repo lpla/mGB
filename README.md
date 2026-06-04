@@ -17,8 +17,9 @@ ROMs:
  * Velocity curves, MPE-lite timbre/pressure controls, pulse-channel legato, global MIDI panic/reset, and microtuning.
  * SameBoy MIDI/link-cable regression coverage for CGB, DMG, and 4-way Synccross-style fan-out.
 
-Download the latest `.gb` file from the GitHub release page, or use
-`Releases/mGB_1_4_0.gb` after building this checkout.
+Download the latest `.gb` file from
+[the v1.4.0 GitHub release](https://github.com/lpla/mGB/releases/tag/v1.4.0),
+or use `Releases/mGB_1_4_0.gb` from this checkout.
 
 ## Documentation
 
@@ -29,13 +30,15 @@ Download the latest `.gb` file from the GitHub release page, or use
 ## Building
 
 This fork builds with [GBDK-2020](https://github.com/gbdk-2020/gbdk-2020).
+The old `gbdk-n` submodule is no longer used or tracked. Install GBDK-2020
+externally and point `GBDK_HOME` at the directory that contains `bin/lcc`.
 
 ```sh
 make -C Source build GBDK_HOME=/path/to/gbdk
 ```
 
 The ROM is written to `Source/mgb.gb`. If `GBDK_HOME` is omitted, the Makefile
-looks for GBDK-2020 at `../gbdk`.
+looks for GBDK-2020 at `../gbdk` as a local convenience path.
 
 To run local ROM regression checks against the committed binaries:
 
@@ -68,6 +71,16 @@ those paths with `SAMEBOY_SRC=/path/to/SameBoy` and
 `SAMEBOY_BOOT_DIR=/path/to/bootroms`.
 
 ## Change Log
+ * Jun 4 2026 1.4.0
+   * Migrated the build from gbdk-n to GBDK-2020.
+   * Removed the obsolete `gbdk-n` submodule; GBDK-2020 is now an external toolchain dependency selected with `GBDK_HOME`.
+   * Added runtime MIDI channel mapping for PU1, PU2, WAV, NOISE, and POLY.
+   * Added GB1/GB2/GB3 channel profiles for 1-5, 6-10, and 11-15 multi-Game-Boy setups.
+   * Added cartridge SRAM persistence for presets and global performance setup.
+   * Added velocity curves, MPE-lite pressure/timbre controls, pulse-channel legato, global CC120 panic, CC121 reset, and microtuning.
+   * Added equal, just, Pythagorean, 19-EDO, and 24-EDO tuning tables.
+   * Added SameBoy MIDI/link regression coverage for CGB, DMG, saved setup, Synccross-style fan-out, stress, and soak scenarios.
+   * Added musician, developer, and feedback/roadmap documentation.
  * 05/22/18
    * Renamed {address,value}Byte to note/velocity.
    * Implemented proper 3 voice polyphony as opposed to round-robin style.
